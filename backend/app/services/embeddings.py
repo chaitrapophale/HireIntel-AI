@@ -1,5 +1,3 @@
-import chromadb
-from chromadb.utils import embedding_functions
 import os
 from dotenv import load_dotenv
 
@@ -7,18 +5,32 @@ load_dotenv()
 
 CHROMA_PERSIST_DIRECTORY = os.getenv("CHROMA_PERSIST_DIRECTORY", "./chroma_db")
 
-# Initialize ChromaDB client
-chroma_client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIRECTORY)
+# Lazy-load chromadb so the server starts even if it's not installed yet
+_chroma_client = None
+_candidates_collection = None
+_CHROMADB_AVAILABLE = False
 
-# Default embedding function uses all-MiniLM-L6-v2 which runs locally and is extremely fast
-# No API key required for this! Perfect for initial semantic matching.
-sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
-
-# Create or get collection
-candidates_collection = chroma_client.get_or_create_collection(
-    name="candidates",
-    embedding_function=sentence_transformer_ef
-)
+def _get_collection():
+    """Lazily initialize ChromaDB. Returns None if chromadb is not installed."""
+    global _chroma_client, _candidates_collection, _CHROMADB_AVAILABLE
+    if _candidates_collection is not None:
+        return _candidates_collection
+    try:
+        import chromadb  # noqa: PLC0415
+        from chromadb.utils import embedding_functions  # noqa: PLC0415
+        _chroma_client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIRECTORY)
+        sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(
+            model_name="all-MiniLM-L6-v2"
+        )
+        _candidates_collection = _chroma_client.get_or_create_collection(
+            name="candidates",
+            embedding_function=sentence_transformer_ef,
+        )
+        _CHROMADB_AVAILABLE = True
+        return _candidates_collection
+    except Exception as e:
+        print(f"[embeddings] ChromaDB not available: {e}. Semantic search disabled.")
+        return None
 
 def add_candidates_to_vector_db(candidates_data: list[dict]):
     """
@@ -51,7 +63,10 @@ def add_candidates_to_vector_db(candidates_data: list[dict]):
         })
         
     # Batch add to ChromaDB
-    candidates_collection.add(
+    collection = _get_collection()
+    if collection is None:
+        return  # chromadb not available, skip silently
+    collection.add(
         documents=documents,
         metadatas=metadatas,
         ids=ids
@@ -60,8 +75,12 @@ def add_candidates_to_vector_db(candidates_data: list[dict]):
 def search_candidates(query_text: str, n_results: int = 10):
     """
     Searches ChromaDB using semantic similarity.
+    Returns empty results if chromadb is not installed.
     """
-    results = candidates_collection.query(
+    collection = _get_collection()
+    if collection is None:
+        return {"ids": [[]], "documents": [[]], "metadatas": [[]], "distances": [[]]}
+    results = collection.query(
         query_texts=[query_text],
         n_results=n_results
     )
