@@ -4,11 +4,6 @@ import { TopNav } from "./TopNav";
 import { useAuthStore } from "@/store";
 
 export function AppLayout() {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
 
   return (
     <div className="flex min-h-screen bg-background">

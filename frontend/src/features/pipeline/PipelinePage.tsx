@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, ArrowRight, MapPin, Briefcase, GripVertical } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -106,7 +106,6 @@ function CandidateCard({
 }
 
 export default function PipelinePage() {
-  const queryClient = useQueryClient();
   const { data = [], isLoading } = useQuery({
     queryKey: ["candidates"],
     queryFn: candidateService.getCandidates,

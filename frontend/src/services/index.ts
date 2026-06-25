@@ -1,3 +1,5 @@
+import { firestoreService } from "./firestoreService";
+import { storageService } from "./storageService";
 import type {
   Candidate,
   AnalyticsSummary,
@@ -10,24 +12,7 @@ import type {
   AIExtractedJob,
 } from "@/types";
 
-// ── Mock delay helper ──────────────────────────────────────────
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-// ══════════════════════════════════════════════════════════════
-// AUTH
-// ══════════════════════════════════════════════════════════════
-export const authService = {
-  login: async (email: string, _password: string): Promise<{ token: string; user: { name: string; email: string; avatarInitials: string } }> => {
-    await delay(1500);
-    return {
-      token: "mock_jwt_token_hireintel",
-      user: { name: "Sarah Jenkins", email, avatarInitials: "SJ" },
-    };
-  },
-  logout: () => {
-    localStorage.removeItem("hireintel_token");
-  },
-};
 
 // ══════════════════════════════════════════════════════════════
 // DASHBOARD
@@ -74,35 +59,14 @@ export const dashboardService = {
   },
 };
 
-import axios from "axios";
-
-const API_URL = "http://localhost:8000/api/v1";
-
 // ══════════════════════════════════════════════════════════════
 // JOBS
 // ══════════════════════════════════════════════════════════════
 export const jobService = {
   getJobs: async (): Promise<Job[]> => {
-    try {
-      const res = await axios.get(`${API_URL}/jobs`);
-      if (res.data && res.data.length > 0) return res.data;
-    } catch (e) {
-      console.warn("Backend offline, using mock jobs", e);
-    }
-    await delay(700);
-    return [
-      { id: "1", title: "Senior Frontend Engineer", department: "Engineering", location: "San Francisco", locationType: "onsite", status: "open", openedAt: "2025-05-01", candidateCount: 42, topMatchScore: 96, pipelineStats: { sourced: 42, screened: 12, interviewing: 4, offered: 0 } },
-      { id: "2", title: "Product Marketing Manager", department: "Marketing", location: "Remote", locationType: "remote", status: "open", openedAt: "2025-05-10", candidateCount: 85, topMatchScore: 88, pipelineStats: { sourced: 85, screened: 5, interviewing: 1, offered: 0 } },
-      { id: "3", title: "Lead UI/UX Designer", department: "Design", location: "New York", locationType: "hybrid", status: "open", openedAt: "2025-04-20", candidateCount: 18, topMatchScore: 92, pipelineStats: { sourced: 18, screened: 8, interviewing: 4, offered: 1 } },
-    ];
+    return await firestoreService.list<Job>("jobs");
   },
-  analyzeJobDescription: async (description: string): Promise<AIExtractedJob> => {
-    try {
-      const res = await axios.post(`${API_URL}/jobs/analyze`, { description });
-      if (res.data && res.data.title) return res.data;
-    } catch (e) {
-      console.warn("Backend offline, using mock JD analysis", e);
-    }
+  analyzeJobDescription: async (_description: string): Promise<AIExtractedJob> => {
     await delay(2500);
     return {
       title: "Senior Frontend Engineer",
@@ -125,94 +89,54 @@ export const jobService = {
 // ══════════════════════════════════════════════════════════════
 export const candidateService = {
   getCandidates: async (): Promise<Candidate[]> => {
-    try {
-      const res = await axios.get(`${API_URL}/candidates`);
-      if (res.data && res.data.length > 0) {
-        // Map backend schema to frontend schema
-        return res.data.map((c: any) => ({
-          id: c.candidate_id,
-          name: c.profile.anonymized_name,
-          initials: c.profile.anonymized_name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase(),
-          jobTitle: c.profile.current_title || "Unknown",
-          location: c.profile.location || "Remote",
-          aiScore: Math.round((c.github_score + c.profile_completeness) / 2) || 85,
-          status: "new",
-          isHiddenGem: c.is_hidden_gem,
-          skills: c.skills.map((s: any) => ({ name: s.name, level: s.proficiency || "intermediate", verified: true })),
-          fitBreakdown: { techSkills: 90, experience: 85, cultureSoftSkills: 88, impact: 92, roleFit: 89 },
-          experience: c.career_history.map((e: any, i: number) => ({ id: `e${i}`, title: e.title, company: e.company, startDate: "2020", endDate: null, description: "Relevant experience." })),
-          aiSummary: c.profile.summary || "Strong candidate.",
-          whyStandOut: [],
-          riskAreas: [],
-          appliedFor: "Open Role",
-          appliedAt: new Date().toISOString().split('T')[0]
-        }));
-      }
-    } catch (e) {
-      console.warn("Backend offline, using mock candidates", e);
-    }
-    await delay(800);
-    return [
-      {
-        id: "1", name: "John Doe", initials: "JD", jobTitle: "Senior Frontend Engineer", location: "San Francisco, CA",
-        aiScore: 98, status: "interviewing", isHiddenGem: false,
-        skills: [
-          { name: "React", level: "expert", verified: true },
-          { name: "TypeScript", level: "expert", verified: true },
-          { name: "Next.js", level: "advanced", verified: true },
-          { name: "GraphQL", level: "advanced", verified: false },
-          { name: "Node.js", level: "intermediate", verified: false },
-        ],
-        fitBreakdown: { techSkills: 99, experience: 95, cultureSoftSkills: 92, impact: 97, roleFit: 98 },
-        experience: [
-          { id: "e1", title: "Lead Frontend Engineer", company: "TechCorp Inc.", startDate: "2021-03", endDate: null, description: "Led a team of 5 engineers building the core customer dashboard. Migrated legacy React app to Next.js, reducing bundle size by 40%.", aiContext: "This role perfectly matches the leadership and technical stack required for our open requisition." },
-          { id: "e2", title: "Senior Web Developer", company: "StartupX", startDate: "2018-06", endDate: "2021-02", description: "Built interactive data visualizations using D3.js and React. Improved accessibility score from 65 to 98.", aiContext: undefined },
-        ],
-        aiSummary: "John is an exceptional match (98%) for the Senior Frontend Engineer role. His deep expertise in React and performance optimization directly aligns with the core requirements.",
-        whyStandOut: [
-          "Architected a micro-frontend migration at TechCorp that reduced load times by 40%.",
-          "Strong open-source presence with accepted PRs in Next.js.",
-          "Demonstrated leadership in mentoring junior devs (noted in 3 recommendations).",
-        ],
-        riskAreas: ["Has primarily worked in small startups (<50 people); may need adjustment to enterprise processes."],
-        appliedFor: "Senior Frontend Engineer", appliedAt: "2025-06-01",
-      },
-      {
-        id: "2", name: "Alice Smith", initials: "AS", jobTitle: "Senior Frontend Engineer", location: "Austin, TX",
-        aiScore: 94, status: "screening", isHiddenGem: false,
-        skills: [{ name: "Vue", level: "expert", verified: true }, { name: "JavaScript", level: "expert", verified: true }],
-        fitBreakdown: { techSkills: 90, experience: 92, cultureSoftSkills: 95, impact: 88, roleFit: 94 },
-        experience: [], aiSummary: "Strong candidate with expertise in Vue.js ecosystem.", whyStandOut: [], riskAreas: [],
-        appliedFor: "Senior Frontend Engineer", appliedAt: "2025-06-03",
-      },
-      {
-        id: "3", name: "Robert Jones", initials: "RJ", jobTitle: "Lead Product Designer", location: "New York, NY",
-        aiScore: 91, status: "new", isHiddenGem: false,
-        skills: [{ name: "Figma", level: "expert", verified: true }, { name: "Prototyping", level: "advanced", verified: false }],
-        fitBreakdown: { techSkills: 85, experience: 91, cultureSoftSkills: 93, impact: 90, roleFit: 91 },
-        experience: [], aiSummary: "Creative designer with strong user research skills.", whyStandOut: [], riskAreas: [],
-        appliedFor: "Lead UI/UX Designer", appliedAt: "2025-06-05",
-      },
-      {
-        id: "4", name: "Michael Chen", initials: "MC", jobTitle: "Self-taught Developer", location: "Seattle, WA",
-        aiScore: 94, status: "new", isHiddenGem: true,
-        skills: [{ name: "Go", level: "expert", verified: true }, { name: "System Architecture", level: "expert", verified: false }],
-        fitBreakdown: { techSkills: 95, experience: 80, cultureSoftSkills: 88, impact: 96, roleFit: 94 },
-        experience: [], aiSummary: "Self-taught developer with extraordinary impact despite non-traditional path.", whyStandOut: ["Single-handedly built an open-source tool used by 10k+ developers."], riskAreas: [],
-        appliedFor: "Senior Frontend Engineer", appliedAt: "2025-06-04",
-      },
-    ];
+    return await firestoreService.list<Candidate>("candidates");
   },
   
-  uploadResume: async (resumeText: string) => {
-    try {
-      const res = await axios.post(`${API_URL}/candidates/upload`, { resume_text: resumeText });
-      return res.data;
-    } catch (e) {
-      console.warn("Backend offline, mock resume upload", e);
-      await delay(1500);
-      return { candidate_id: "mock_cand", message: "Mock upload success" };
-    }
+  uploadResume: async (file: File) => {
+    const uploadResult = await storageService.uploadFile(file, "resumes");
+    return await firestoreService.create("candidates", {
+      name: "New Upload",
+      initials: "NU",
+      jobTitle: "Candidate",
+      location: "Remote",
+      aiScore: 85,
+      status: "new",
+      isHiddenGem: false,
+      skills: [],
+      fitBreakdown: { techSkills: 80, experience: 80, cultureSoftSkills: 80, impact: 80, roleFit: 80 },
+      experience: [],
+      aiSummary: "Parsed from uploaded resume.",
+      whyStandOut: [],
+      riskAreas: [],
+      appliedFor: "Open Role",
+      appliedAt: new Date().toISOString().split('T')[0],
+      resumeUrl: uploadResult.downloadUrl
+    });
+  }
+};
+
+// ══════════════════════════════════════════════════════════════
+// RANKINGS
+// ══════════════════════════════════════════════════════════════
+export const rankingService = {
+  getRankings: async (): Promise<any[]> => {
+    return await firestoreService.list<any>("rankings");
+  }
+};
+
+// ══════════════════════════════════════════════════════════════
+// EXPORTS
+// ══════════════════════════════════════════════════════════════
+export const exportService = {
+  getExports: async (): Promise<any[]> => {
+    return await firestoreService.list<any>("exports");
+  },
+  createExport: async (type: string): Promise<any> => {
+    return await firestoreService.create("exports", {
+      type,
+      status: "pending",
+      downloadUrl: ""
+    });
   }
 };
 

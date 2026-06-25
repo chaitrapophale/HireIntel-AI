@@ -5,7 +5,7 @@ import {
   Kanban, Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useAuthStore } from "@/store";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
 const navItems = [
@@ -22,12 +22,16 @@ const navItems = [
 
 export function Sidebar() {
   const navigate = useNavigate();
-  const logout = useAuthStore((s) => s.logout);
+  const { logout, currentUser } = useAuth();
 
-  const handleLogout = () => {
-    logout();
-    toast.success("Signed out successfully");
-    navigate("/login");
+  const handleLogout = async () => {
+    try {
+      await logout();
+      toast.success("Signed out successfully");
+      navigate("/login");
+    } catch {
+      toast.error("Failed to sign out");
+    }
   };
 
   return (
@@ -104,9 +108,9 @@ export function Sidebar() {
           onClick={handleLogout}
           className="flex items-center gap-3 px-3 py-2 rounded-lg text-white/50 hover:text-white hover:bg-white/5 transition-all"
         >
-          <div className="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container font-bold text-xs border-2 border-primary-fixed">SJ</div>
+          <div className="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container font-bold text-xs border-2 border-primary-fixed">{currentUser?.email?.substring(0, 2).toUpperCase() ?? "U"}</div>
           <div className="flex-1 text-left">
-            <p className="text-xs font-semibold text-white/80">Sarah Jenkins</p>
+            <p className="text-xs font-semibold text-white/80 truncate">{currentUser?.email || "User"}</p>
             <p className="text-[10px] text-white/40">Sign out</p>
           </div>
         </button>

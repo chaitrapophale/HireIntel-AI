@@ -136,38 +136,54 @@ export default function TeamPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              {table.getHeaderGroups().map((hg) => (
-                <tr key={hg.id} className="border-b border-outline-variant/30 bg-surface-container-lowest text-[11px] text-on-surface-variant uppercase tracking-wider">
-                  {hg.headers.map((header) => (
-                    <th key={header.id} className="px-5 py-3 text-left font-semibold">
-                      {flexRender(header.column.columnDef.header, header.getContext())}
-                    </th>
-                  ))}
-                </tr>
-              ))}
-            </thead>
-            <tbody className="divide-y divide-outline-variant/20">
-              {isLoading
-                ? [1, 2, 3].map((i) => (
-                    <tr key={i} className="animate-pulse">
-                      {columns.map((_, j) => (
-                        <td key={j} className="px-5 py-4"><div className="h-3 bg-surface-container rounded w-3/4" /></td>
-                      ))}
-                    </tr>
-                  ))
-                : table.getRowModel().rows.map((row) => (
-                    <tr key={row.id} className="hover:bg-surface-container-low transition-colors group">
-                      {row.getVisibleCells().map((cell) => (
-                        <td key={cell.id} className="px-5 py-4">
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-            </tbody>
-          </table>
+          {data.length === 0 && !isLoading ? (
+            <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+              <div className="w-16 h-16 bg-surface-container rounded-full flex items-center justify-center mb-4">
+                <Users className="w-8 h-8 text-on-surface-variant" />
+              </div>
+              <h3 className="text-xl font-bold text-on-surface mb-2">No Team Members Found</h3>
+              <p className="text-on-surface-variant max-w-sm mb-6">You don't have any team members matching your search. Try adjusting your filters or invite a new member.</p>
+              <button
+                onClick={() => toast.info("Invite member flow coming soon!")}
+                className="bg-primary text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow hover:bg-primary-container transition-all flex items-center gap-2"
+              >
+                <UserPlus className="w-4 h-4" /> Invite Member
+              </button>
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                {table.getHeaderGroups().map((hg) => (
+                  <tr key={hg.id} className="border-b border-outline-variant/30 bg-surface-container-lowest text-[11px] text-on-surface-variant uppercase tracking-wider">
+                    {hg.headers.map((header) => (
+                      <th key={header.id} className="px-5 py-3 text-left font-semibold">
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                      </th>
+                    ))}
+                  </tr>
+                ))}
+              </thead>
+              <tbody className="divide-y divide-outline-variant/20">
+                {isLoading
+                  ? [1, 2, 3].map((i) => (
+                      <tr key={i} className="animate-pulse">
+                        {columns.map((_, j) => (
+                          <td key={j} className="px-5 py-4"><div className="h-3 bg-surface-container rounded w-3/4" /></td>
+                        ))}
+                      </tr>
+                    ))
+                  : table.getRowModel().rows.map((row) => (
+                      <tr key={row.id} className="hover:bg-surface-container-low transition-colors group">
+                        {row.getVisibleCells().map((cell) => (
+                          <td key={cell.id} className="px-5 py-4">
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>

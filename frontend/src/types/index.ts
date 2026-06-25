@@ -1,7 +1,13 @@
 // ─────────────────────────────────────────────────────────────
 // Auth
 // ─────────────────────────────────────────────────────────────
-export interface User {
+export interface BaseEntity {
+  userId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface User extends BaseEntity {
   id: string;
   name: string;
   email: string;
@@ -22,7 +28,7 @@ export interface LoginCredentials {
 export type JobStatus = "open" | "on_hold" | "closed" | "draft";
 export type JobLocation = "remote" | "onsite" | "hybrid";
 
-export interface Job {
+export interface Job extends BaseEntity {
   id: string;
   title: string;
   department: string;
@@ -82,7 +88,7 @@ export interface FitBreakdown {
   roleFit: number;
 }
 
-export interface Candidate {
+export interface Candidate extends BaseEntity {
   id: string;
   name: string;
   initials: string;
@@ -99,6 +105,7 @@ export interface Candidate {
   riskAreas: string[];
   appliedFor: string;
   appliedAt: string;
+  resumeUrl?: string;
 }
 
 // ─────────────────────────────────────────────────────────────

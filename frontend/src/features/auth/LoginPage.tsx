@@ -3,12 +3,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useNavigate } from "react-router-dom";
 import { Zap, Eye, EyeOff, Shield, CheckCircle, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { useAuthStore } from "@/store";
-import { authService } from "@/services";
+import { auth, db } from "@/lib/firebase";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
+import { doc, setDoc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 const schema = z.object({
   email: z.string().email("Please enter a valid work email"),
@@ -21,23 +23,38 @@ type FormData = z.infer<typeof schema>;
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
   const navigate = useNavigate();
-  const { login } = useAuthStore();
+  const { currentUser } = useAuth();
+
+  useEffect(() => {
+    if (currentUser) {
+      navigate("/app/dashboard", { replace: true });
+    }
+  }, [currentUser, navigate]);
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { email: "sarah@globaltech.com", password: "password" },
+    defaultValues: { email: "", password: "" },
   });
 
   const onSubmit = async (data: FormData) => {
     setLoading(true);
     try {
-      const result = await authService.login(data.email, data.password);
-      login(result.token, result.user);
-      toast.success("Welcome back, " + result.user.name + "!");
+      if (isSignUp) {
+        const cred = await createUserWithEmailAndPassword(auth, data.email, data.password);
+        await setDoc(doc(db, "users", cred.user.uid), {
+          email: data.email,
+          createdAt: new Date().toISOString()
+        });
+        toast.success("Account created successfully!");
+      } else {
+        await signInWithEmailAndPassword(auth, data.email, data.password);
+        toast.success("Welcome back!");
+      }
       navigate("/app/dashboard");
-    } catch {
-      toast.error("Invalid credentials. Please try again.");
+    } catch (err: any) {
+      toast.error(err.message || "Authentication failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -123,8 +140,8 @@ export default function LoginPage() {
           </div>
 
           <div className="mb-8">
-            <h2 className="text-3xl font-bold text-on-surface mb-2">Welcome back</h2>
-            <p className="text-on-surface-variant">Please enter your details to sign in.</p>
+            <h2 className="text-3xl font-bold text-on-surface mb-2">{isSignUp ? "Create an account" : "Welcome back"}</h2>
+            <p className="text-on-surface-variant">Please enter your details to {isSignUp ? "sign up" : "sign in"}.</p>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
@@ -184,11 +201,15 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full bg-primary text-white font-bold py-3.5 rounded-xl shadow hover:bg-primary-container active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-70"
             >
-              {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Signing In…</> : "Sign In"}
+              {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> {isSignUp ? "Creating Account…" : "Signing In…"}</> : (isSignUp ? "Create Account" : "Sign In")}
             </button>
 
-            <button type="button" className="w-full bg-white border border-outline-variant text-on-surface font-bold py-3.5 rounded-xl hover:bg-surface-container-low active:scale-[0.98] transition-all">
-              Create Account
+            <button 
+              type="button" 
+              onClick={() => setIsSignUp(!isSignUp)}
+              className="w-full bg-white border border-outline-variant text-on-surface font-bold py-3.5 rounded-xl hover:bg-surface-container-low active:scale-[0.98] transition-all"
+            >
+              {isSignUp ? "Already have an account? Sign In" : "Create Account"}
             </button>
           </form>
 

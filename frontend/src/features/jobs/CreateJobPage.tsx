@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Upload, FileText, Sparkles, CheckCircle2, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { jobService } from "@/services";
+import { storageService } from "@/services/storageService";
 import type { AIExtractedJob } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +18,7 @@ const levelColors = {
 export default function CreateJobPage() {
   const [description, setDescription] = useState("");
   const [extracted, setExtracted] = useState<AIExtractedJob | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
   const mutation = useMutation({
     mutationFn: jobService.analyzeJobDescription,
@@ -27,17 +29,37 @@ export default function CreateJobPage() {
     onError: () => toast.error("Extraction failed. Please try again."),
   });
 
-  const onDrop = useCallback((files: File[]) => {
+  const onDrop = useCallback(async (files: File[]) => {
     const file = files[0];
     if (!file) return;
-    // Simulate reading file content
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
-      setDescription(text.slice(0, 2000) || `[Content from ${file.name}]`);
-    };
-    reader.readAsText(file);
-    toast.info(`File "${file.name}" loaded. Click Analyze to extract requirements.`);
+
+    try {
+      storageService.validateFile(file);
+    } catch (e: any) {
+      toast.error(e.message);
+      return;
+    }
+
+    setUploadProgress(0);
+
+    try {
+      await storageService.uploadFile(file, "jobs", (progress) => {
+        setUploadProgress(progress);
+      });
+      toast.success(`File "${file.name}" uploaded successfully! Click Analyze to extract requirements.`);
+      
+      // Still read local text for the AI extraction simulation
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        setDescription(text.slice(0, 2000) || `[Content from ${file.name}]`);
+      };
+      reader.readAsText(file);
+    } catch (err: any) {
+      toast.error("Upload failed: " + err.message);
+    } finally {
+      setTimeout(() => setUploadProgress(null), 1500);
+    }
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -85,6 +107,18 @@ export default function CreateJobPage() {
               {isDragActive ? "Drop it here!" : "Drag & drop PDF/Word, or click to upload"}
             </p>
           </div>
+
+          {uploadProgress !== null && (
+            <div className="mb-4">
+              <div className="flex justify-between text-[10px] text-on-surface-variant mb-1">
+                <span>Uploading...</span>
+                <span>{uploadProgress}%</span>
+              </div>
+              <div className="w-full bg-surface-container-highest rounded-full h-1.5">
+                <div className="h-1.5 rounded-full bg-primary transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+              </div>
+            </div>
+          )}
 
           {/* Textarea */}
           <textarea

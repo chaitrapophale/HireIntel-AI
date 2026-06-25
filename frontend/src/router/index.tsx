@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppLayout } from "@/layouts/AppLayout";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import LoginPage from "@/features/auth/LoginPage";
 import DashboardPage from "@/features/dashboard/DashboardPage";
 import JobsPage from "@/features/jobs/JobsPage";
@@ -23,7 +24,11 @@ export const router = createBrowserRouter([
   },
   {
     path: "/app",
-    element: <AppLayout />,
+    element: (
+      <ProtectedRoute>
+        <AppLayout />
+      </ProtectedRoute>
+    ),
     children: [
       { index: true, element: <Navigate to="/app/dashboard" replace /> },
       { path: "dashboard", element: <DashboardPage /> },
