@@ -44,6 +44,9 @@ export interface Job extends BaseEntity {
     interviewing: number;
     offered: number;
   };
+  description: string;
+  core_skills?: string[];
+  soft_skills?: string[];
 }
 
 export interface CreateJobPayload {

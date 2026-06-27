@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, FileText, Sparkles, CheckCircle2, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
@@ -16,6 +17,8 @@ const levelColors = {
 };
 
 export default function CreateJobPage() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [description, setDescription] = useState("");
   const [extracted, setExtracted] = useState<AIExtractedJob | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
@@ -27,6 +30,15 @@ export default function CreateJobPage() {
       toast.success("AI extraction complete!");
     },
     onError: () => toast.error("Extraction failed. Please try again."),
+  });
+  const saveMutation = useMutation({
+    mutationFn: jobService.createJob,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      toast.success("Requisition saved and opened successfully!");
+      navigate("/app/jobs");
+    },
+    onError: () => toast.error("Failed to save requisition. Please try again."),
   });
 
   const onDrop = useCallback(async (files: File[]) => {
@@ -223,8 +235,8 @@ export default function CreateJobPage() {
                   <div className="bg-surface p-3 rounded-xl border border-outline-variant/50">
                     <div className="text-[10px] uppercase font-bold text-on-surface-variant mb-2">Core Technical Skills</div>
                     <div className="flex flex-wrap gap-2">
-                      {extracted.coreSkills.map((s) => (
-                        <span key={s.skill} className={cn("px-2.5 py-1 rounded-lg text-xs font-bold border", levelColors[s.level])}>
+                      {(extracted.coreSkills || []).map((s) => (
+                        <span key={s.skill} className={cn("px-2.5 py-1 rounded-lg text-xs font-bold border", levelColors[s.level as keyof typeof levelColors] || levelColors.intermediate)}>
                           {s.skill} <span className="opacity-60">({s.level})</span>
                         </span>
                       ))}
@@ -234,14 +246,31 @@ export default function CreateJobPage() {
                   <div className="bg-surface p-3 rounded-xl border border-outline-variant/50">
                     <div className="text-[10px] uppercase font-bold text-on-surface-variant mb-2">Soft Skills & Culture</div>
                     <div className="flex flex-wrap gap-2">
-                      {extracted.softSkills.map((s) => (
+                      {(extracted.softSkills || []).map((s) => (
                         <span key={s} className="px-2.5 py-1 rounded-lg text-xs font-bold bg-secondary/10 text-secondary border border-secondary/20">{s}</span>
                       ))}
                     </div>
                   </div>
 
-                  <button className="w-full bg-primary text-white py-3 rounded-xl font-bold shadow hover:bg-primary-container transition-all">
-                    Save & Open Requisition
+                  <button
+                    onClick={() => {
+                      saveMutation.mutate({
+                        title: extracted.title || "Untitled Requisition",
+                        department: extracted.department || "Engineering",
+                        location: extracted.location || "Remote",
+                        description: description || "",
+                        core_skills: (extracted.coreSkills || []).map((s) => s?.skill).filter(Boolean),
+                        soft_skills: extracted.softSkills || [],
+                      });
+                    }}
+                    disabled={saveMutation.isPending}
+                    className="w-full bg-primary text-white py-3 rounded-xl font-bold shadow hover:bg-primary-container transition-all flex items-center justify-center gap-2"
+                  >
+                    {saveMutation.isPending ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
+                    ) : (
+                      "Save & Open Requisition"
+                    )}
                   </button>
                 </div>
               </motion.div>

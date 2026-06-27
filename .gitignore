@@ -76,4 +76,5 @@ Thumbs.db
 *.pth
 *.bin
 models/
+!backend/app/models/
 sentence_transformers/

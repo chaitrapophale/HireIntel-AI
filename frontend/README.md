@@ -37,7 +37,7 @@ src/
 ├── layouts/           # Global layouts (AppShell, Sidebar, TopNav)
 ├── lib/               # Utility functions (cn, axios API client)
 ├── router/            # React Router v7 configuration
-├── services/          # API communication layers (Mocked for now)
+├── services/          # API communication layers (Integrated with FastAPI)
 ├── store/             # Zustand stores (Auth state, Sidebar state)
 └── types/             # Global TypeScript interfaces
 ```
@@ -72,11 +72,13 @@ npm run build
 ```
 The output will be generated in the `dist/` directory.
 
-## Backend Integration Readiness
+## FastAPI Backend Integration
 
-The frontend is completely decoupled from the backend. Currently, it uses a mock API layer located in `src/services/index.ts`. 
+The frontend is fully integrated with the FastAPI backend server. All API requests are processed through `src/services/index.ts` using the configured Axios client in `src/lib/api.ts`.
 
-To connect this frontend to your future **FastAPI** backend:
-1. Open `src/lib/api.ts` and ensure the `VITE_API_URL` points to your FastAPI server.
-2. Open `src/services/index.ts` and replace the mock simulated delays (`await delay(...)`) with real API calls using the pre-configured Axios instance (e.g., `return api.get('/api/v1/candidates').then(res => res.data)`).
-3. **TanStack Query** will automatically handle caching, loading states, and error handling without you needing to change a single React component!
+Key integrated features:
+1. **Live Candidate Directory & Profiles**: Displays and parses actual database records from the SQLite engine.
+2. **Drag & Drop Dataset Ingestion**: Uploads CSV, XLSX, and JSON datasets to the backend `/dataset/upload` API.
+3. **AI Ranking Engine**: Executes the vector search (ChromaDB + NV-Embed-QA) and reranking (Llama-3-70B) pipeline.
+4. **Client-Side Export**: Generates local candidate list downloads.
+5. **TanStack Query state synchronization**: Handles real-time loading, cache invalidations, and data syncing.

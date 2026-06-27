@@ -1,5 +1,6 @@
 import { firestoreService } from "./firestoreService";
 import { storageService } from "./storageService";
+import api from "@/lib/api";
 import type {
   Candidate,
   AnalyticsSummary,
@@ -12,49 +13,53 @@ import type {
   AIExtractedJob,
 } from "@/types";
 
-const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+// ══════════════════════════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════════════════════════
+export const authService = {
+  login: async (credential: string): Promise<{ token: string; user: { name: string; email: string; avatarInitials: string } }> => {
+    const res = await api.post("/auth/google", { credential });
+    const user = res.data.user;
+    return {
+      token: res.data.access_token,
+      user: { 
+        name: user.name, 
+        email: user.email, 
+        avatarInitials: user.name.split(" ").map((n: string) => n[0]).join("").substring(0, 2).toUpperCase() 
+      },
+    };
+  },
+  logout: () => {
+    localStorage.removeItem("hireintel_token");
+  },
+};
 
 // ══════════════════════════════════════════════════════════════
 // DASHBOARD
 // ══════════════════════════════════════════════════════════════
 export const dashboardService = {
   getStats: async (): Promise<DashboardStats> => {
-    await delay(600);
-    return { activeRequisitions: 12, topCandidatesSourced: 48, timeToHire: 18, interviewsScheduled: 24 };
+    const res = await api.get("/dashboard/stats");
+    return res.data;
   },
   getAIActivity: async (): Promise<AIActivity[]> => {
-    await delay(800);
     return [
-      { id: "1", type: "scanning", message: "Scanning GitHub & StackOverflow for Sr. Frontend roles...", time: "Just now" },
-      { id: "2", type: "outreach", message: "Sent 12 automated outreach emails for Product Marketing role.", time: "20 mins ago" },
-      { id: "3", type: "ranking", message: "Ranked 45 new applicants across 3 active jobs.", time: "1 hour ago" },
+      { id: "1", type: "scanning", message: "Scanning for Senior Frontend roles...", time: "Just now" },
+      { id: "2", type: "ranking", message: "Ranked new candidates via NVIDIA NIM.", time: "1 hour ago" },
     ];
   },
   getPriorityInsights: async (): Promise<PriorityInsight[]> => {
-    await delay(700);
     return [
       {
-        id: "1", type: "candidate", title: "John Doe", subtitle: "applied for Senior Frontend Engineer",
-        description: "AI detected strong crossover in React performance optimization based on his recent open-source contributions.",
-        score: 96, urgency: "high", actions: ["Review Profile", "Fast-track Interview"],
-      },
-      {
-        id: "2", type: "market", title: "Market Trend Alert",
-        description: "Salary expectations for Product Designers in NYC have increased by 8% in the last 30 days.",
-        urgency: "medium",
-      },
-      {
-        id: "3", type: "bottleneck", title: "Pipeline Bottleneck",
-        description: "The 'Data Scientist' role has 14 candidates stuck in 'Technical Assessment' for over 5 days.",
-        urgency: "high",
+        id: "1", type: "candidate", title: "Top Match Found", subtitle: "Based on NVIDIA LLM Reranking",
+        description: "A recent upload has a 95% match with your open requisition.",
+        score: 95, urgency: "high", actions: ["Review Profile", "Reach Out"],
       },
     ];
   },
   getInterviews: async (): Promise<ScheduledInterview[]> => {
-    await delay(500);
     return [
-      { id: "1", candidateName: "Sarah Jenkins", role: "Sr. Frontend Engineer", time: "10:00", period: "AM", hasAIPrep: true },
-      { id: "2", candidateName: "Michael Chang", role: "Product Marketing Mgr", time: "1:30", period: "PM", hasAIPrep: false },
+      { id: "1", candidateName: "Sarah Jenkins", role: "Sr. Frontend Engineer", time: "10:00", period: "AM", hasAIPrep: true }
     ];
   },
 };
@@ -64,23 +69,27 @@ export const dashboardService = {
 // ══════════════════════════════════════════════════════════════
 export const jobService = {
   getJobs: async (): Promise<Job[]> => {
-    return await firestoreService.list<Job>("jobs");
+    const res = await api.get("/jobs/");
+    return res.data;
   },
-  analyzeJobDescription: async (_description: string): Promise<AIExtractedJob> => {
-    await delay(2500);
-    return {
-      title: "Senior Frontend Engineer",
-      department: "Engineering",
-      coreSkills: [
-        { skill: "React", level: "expert" },
-        { skill: "TypeScript", level: "expert" },
-        { skill: "Next.js", level: "advanced" },
-        { skill: "Performance Optimization", level: "advanced" },
-      ],
-      softSkills: ["Mentorship", "Cross-functional Communication"],
-      experience: "5+ years",
-      location: "San Francisco / Hybrid",
-    };
+  analyzeJobDescription: async (description: string): Promise<AIExtractedJob> => {
+    const res = await api.post("/jobs/analyze", { description });
+    return res.data;
+  },
+  createJob: async (job: {
+    title: string;
+    department?: string;
+    location?: string;
+    description?: string;
+    core_skills?: string[];
+    soft_skills?: string[];
+  }) => {
+    const res = await api.post("/jobs/", job);
+    return res.data;
+  },
+  deleteJob: async (jobId: string) => {
+    const res = await api.delete(`/jobs/${jobId}`);
+    return res.data;
   },
 };
 
@@ -89,30 +98,33 @@ export const jobService = {
 // ══════════════════════════════════════════════════════════════
 export const candidateService = {
   getCandidates: async (): Promise<Candidate[]> => {
-    return await firestoreService.list<Candidate>("candidates");
+    const res = await api.get("/candidates");
+    return res.data;
   },
   
-  uploadResume: async (file: File) => {
-    const uploadResult = await storageService.uploadFile(file, "resumes");
-    return await firestoreService.create("candidates", {
-      name: "New Upload",
-      initials: "NU",
-      jobTitle: "Candidate",
-      location: "Remote",
-      aiScore: 85,
-      status: "new",
-      isHiddenGem: false,
-      skills: [],
-      fitBreakdown: { techSkills: 80, experience: 80, cultureSoftSkills: 80, impact: 80, roleFit: 80 },
-      experience: [],
-      aiSummary: "Parsed from uploaded resume.",
-      whyStandOut: [],
-      riskAreas: [],
-      appliedFor: "Open Role",
-      appliedAt: new Date().toISOString().split('T')[0],
-      resumeUrl: uploadResult.downloadUrl
+  uploadResume: async (resumeText: string) => {
+    const res = await api.post("/candidates/upload", { resume_text: resumeText });
+    return res.data;
+  },
+
+  uploadDataset: async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await api.post("/candidates/upload-dataset", formData, {
+      headers: { "Content-Type": "multipart/form-data" }
     });
-  }
+    return res.data;
+  },
+
+  rankCandidates: async (jobDescription: string) => {
+    const res = await api.post("/candidates/rank", { job_description: jobDescription, top_n: 100 });
+    return res.data;
+  },
+
+  deleteCandidate: async (candidateId: string) => {
+    const res = await api.delete(`/candidates/${candidateId}`);
+    return res.data;
+  },
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -145,20 +157,8 @@ export const exportService = {
 // ══════════════════════════════════════════════════════════════
 export const analyticsService = {
   getSummary: async (): Promise<AnalyticsSummary> => {
-    await delay(900);
-    return {
-      totalSourced: 1240,
-      timeToHire: 18,
-      offerAcceptanceRate: 87,
-      aiRankingAccuracy: 87,
-      funnelData: [
-        { stage: "AI Sourced", count: 1240, conversionRate: 100 },
-        { stage: "Shortlisted (>85%)", count: 184, conversionRate: 15 },
-        { stage: "Interviewed", count: 42, conversionRate: 23 },
-        { stage: "Offered", count: 10, conversionRate: 24 },
-        { stage: "Hired", count: 8, conversionRate: 80 },
-      ],
-    };
+    const res = await api.get("/analytics/summary");
+    return res.data;
   },
 };
 
@@ -167,12 +167,8 @@ export const analyticsService = {
 // ══════════════════════════════════════════════════════════════
 export const teamService = {
   getMembers: async (): Promise<TeamMember[]> => {
-    await delay(600);
     return [
-      { id: "1", name: "Sarah Jenkins", email: "sarah@company.com", role: "admin", status: "active", initials: "SJ", isCurrentUser: true },
-      { id: "2", name: "David Ross", email: "david@company.com", role: "hiring_manager", status: "active", initials: "DR", isCurrentUser: false },
-      { id: "3", name: "Priya Nair", email: "priya@company.com", role: "recruiter", status: "active", initials: "PN", isCurrentUser: false },
-      { id: "4", name: "James Liu", email: "james@company.com", role: "interviewer", status: "pending", initials: "JL", isCurrentUser: false },
+      { id: "1", name: "Sarah Jenkins", email: "sarah@company.com", role: "admin", status: "active", initials: "SJ", isCurrentUser: true }
     ];
   },
 };
