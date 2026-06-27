@@ -1,5 +1,5 @@
-import { firestoreService } from "./firestoreService";
-import { storageService } from "./storageService";
+export { firestoreService } from "./firestoreService";
+export { storageService } from "./storageService";
 import api from "@/lib/api";
 import type {
   Candidate,

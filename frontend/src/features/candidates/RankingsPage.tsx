@@ -4,7 +4,7 @@ import {
   useReactTable, getCoreRowModel, getSortedRowModel,
   getFilteredRowModel, flexRender, type ColumnDef, type SortingState,
 } from "@tanstack/react-table";
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { ChevronUp, ChevronDown, ArrowRight, Trophy, Upload, Sparkles, Loader2, X, FileText, CheckCircle2, AlertCircle, Download } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useDropzone } from "react-dropzone";
