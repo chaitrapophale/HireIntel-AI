@@ -1,9 +1,10 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, FileText, Sparkles, CheckCircle2, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 import { jobService } from "@/services";
 import { storageService } from "@/services/storageService";
 import type { AIExtractedJob } from "@/types";
@@ -16,9 +17,12 @@ const levelColors = {
 };
 
 export default function CreateJobPage() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [description, setDescription] = useState("");
   const [extracted, setExtracted] = useState<AIExtractedJob | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const mutation = useMutation({
     mutationFn: jobService.analyzeJobDescription,
@@ -26,7 +30,7 @@ export default function CreateJobPage() {
       setExtracted(data);
       toast.success("AI extraction complete!");
     },
-    onError: () => toast.error("Extraction failed. Please try again."),
+    onError: (err: Error) => toast.error(err.message || "Extraction failed. Please try again."),
   });
 
   const onDrop = useCallback(async (files: File[]) => {
@@ -46,9 +50,9 @@ export default function CreateJobPage() {
       await storageService.uploadFile(file, "jobs", (progress) => {
         setUploadProgress(progress);
       });
-      toast.success(`File "${file.name}" uploaded successfully! Click Analyze to extract requirements.`);
-      
-      // Still read local text for the AI extraction simulation
+      toast.success(`File "${file.name}" uploaded. Click Analyze to extract requirements.`);
+
+      // Read local text for AI extraction
       const reader = new FileReader();
       reader.onload = (e) => {
         const text = e.target?.result as string;
@@ -56,7 +60,7 @@ export default function CreateJobPage() {
       };
       reader.readAsText(file);
     } catch (err: any) {
-      toast.error("Upload failed: " + err.message);
+      toast.error("Upload failed: " + (err.message || "Unknown error"));
     } finally {
       setTimeout(() => setUploadProgress(null), 1500);
     }
@@ -75,6 +79,29 @@ export default function CreateJobPage() {
     }
     setExtracted(null);
     mutation.mutate(description);
+  };
+
+  const handleSave = async () => {
+    if (!extracted) return;
+    setIsSaving(true);
+    try {
+      await jobService.createJob({
+        title: extracted.title,
+        department: extracted.department || "",
+        location: extracted.location || "",
+        description,
+        coreSkills: extracted.coreSkills,
+        softSkills: extracted.softSkills,
+      });
+      // Invalidate jobs cache so the list refreshes
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      toast.success(`Requisition "${extracted.title}" created!`);
+      navigate("/app/jobs");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save requisition.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -124,7 +151,7 @@ export default function CreateJobPage() {
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Or paste the job description here…&#10;&#10;We are looking for a Senior Frontend Engineer to join our core product team…"
+            placeholder={"Or paste the job description here…\n\nWe are looking for a Senior Frontend Engineer to join our core product team…"}
             className="flex-1 w-full bg-surface-container-lowest border border-outline-variant rounded-xl p-4 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary resize-none transition-all"
           />
 
@@ -224,7 +251,7 @@ export default function CreateJobPage() {
                     <div className="text-[10px] uppercase font-bold text-on-surface-variant mb-2">Core Technical Skills</div>
                     <div className="flex flex-wrap gap-2">
                       {extracted.coreSkills.map((s) => (
-                        <span key={s.skill} className={cn("px-2.5 py-1 rounded-lg text-xs font-bold border", levelColors[s.level])}>
+                        <span key={s.skill} className={cn("px-2.5 py-1 rounded-lg text-xs font-bold border", levelColors[s.level as keyof typeof levelColors] ?? levelColors.intermediate)}>
                           {s.skill} <span className="opacity-60">({s.level})</span>
                         </span>
                       ))}
@@ -240,8 +267,17 @@ export default function CreateJobPage() {
                     </div>
                   </div>
 
-                  <button className="w-full bg-primary text-white py-3 rounded-xl font-bold shadow hover:bg-primary-container transition-all">
-                    Save & Open Requisition
+                  {/* ── Save button now wired to real API ── */}
+                  <button
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className="w-full bg-primary text-white py-3 rounded-xl font-bold shadow hover:bg-primary-container transition-all flex items-center justify-center gap-2 disabled:opacity-70"
+                  >
+                    {isSaving ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>
+                    ) : (
+                      "Save & Open Requisition"
+                    )}
                   </button>
                 </div>
               </motion.div>

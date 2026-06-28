@@ -65,7 +65,7 @@ export default function JobsPage() {
             data.map((job) => (
               <div
                 key={job.id}
-                onClick={() => navigate(`/app/rankings`)}
+                onClick={() => navigate(`/app/rankings?jobId=${job.id}`)}
                 className="glass-card rounded-2xl border border-outline-variant/50 p-5 hover:shadow-xl transition-all cursor-pointer group"
               >
                 <div className="flex justify-between items-start mb-4">

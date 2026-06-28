@@ -12,8 +12,6 @@ Returns a normalized score (0–1) plus human-readable reasoning.
 """
 
 from __future__ import annotations
-import re
-import json
 from typing import Any, Optional
 from app.services.embeddings import search_candidates
 

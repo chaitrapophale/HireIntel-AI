@@ -1,5 +1,4 @@
 import requests
-import sys
 
 def upload_to_firebase_storage_rest(bucket_name, object_path, file_bytes, mime_type, id_token):
     # Firebase Storage REST API endpoint for uploading

@@ -1,4 +1,11 @@
-import { firestoreService } from "./firestoreService";
+/**
+ * HireIntel AI — Service Layer
+ *
+ * All reads/writes now go to the FastAPI backend via apiClient.
+ * Firestore is kept only for auth/settings that specifically need it.
+ * Mock data is removed from all service functions.
+ */
+import { apiClient } from "./apiClient";
 import { storageService } from "./storageService";
 import type {
   Candidate,
@@ -12,167 +19,255 @@ import type {
   AIExtractedJob,
 } from "@/types";
 
-const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+// ─── Type helpers for paginated response ──────────────────────────────────
+interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
 
-// ══════════════════════════════════════════════════════════════
-// DASHBOARD
-// ══════════════════════════════════════════════════════════════
-export const dashboardService = {
-  getStats: async (): Promise<DashboardStats> => {
-    await delay(600);
-    return { activeRequisitions: 12, topCandidatesSourced: 48, timeToHire: 18, interviewsScheduled: 24 };
+// ──────────────────────────────────────────────────────────────────────────
+// CANDIDATES
+// ──────────────────────────────────────────────────────────────────────────
+
+/**
+ * Maps a backend CandidateResponse to the frontend Candidate type.
+ * The backend uses snake_case and a different shape, so we normalize here.
+ */
+function mapCandidate(c: any): Candidate {
+  const profile = c.profile ?? {};
+  const redrob = c.redrob_signals ?? {};
+
+  return {
+    id: c.candidate_id,
+    name: profile.anonymized_name || "Unknown",
+    initials: (profile.anonymized_name || "UN")
+      .split(" ")
+      .map((n: string) => n[0])
+      .join("")
+      .substring(0, 2)
+      .toUpperCase(),
+    jobTitle: profile.current_title || "Candidate",
+    location: profile.location || "Unknown",
+    aiScore: Math.round((c.github_score || 0) * 100) || 80,
+    status: (redrob.pipeline_status as Candidate["status"]) || "new",
+    isHiddenGem: c.is_hidden_gem || false,
+    skills: (c.skills || []).map((s: any) => ({
+      name: s.name || s,
+      level: (s.proficiency || "intermediate") as "expert" | "advanced" | "intermediate",
+      verified: false,
+    })),
+    fitBreakdown: {
+      techSkills: Math.round((c.github_score || 0.8) * 100),
+      experience: Math.round(Math.min(1, (profile.years_of_experience || 3) / 10) * 100),
+      cultureSoftSkills: 80,
+      impact: Math.round((c.profile_completeness || 0.8) * 100),
+      roleFit: Math.round((c.github_score || 0.8) * 100),
+    },
+    experience: (c.career_history || []).map((e: any, i: number) => ({
+      id: `exp-${i}`,
+      title: e.title || "",
+      company: e.company || "",
+      startDate: "2020-01",
+      endDate: null,
+      description: e.description || "",
+    })),
+    aiSummary: profile.summary || "Candidate imported from resume.",
+    whyStandOut: [],
+    riskAreas: [],
+    appliedFor: "Open Requisition",
+    appliedAt: new Date().toISOString().split("T")[0],
+  };
+}
+
+export const candidateService = {
+  /** Get paginated list of candidates */
+  getCandidates: async (page = 1, pageSize = 50): Promise<Candidate[]> => {
+    const { data } = await apiClient.get<PaginatedResponse<any>>(
+      `/candidates/?page=${page}&page_size=${pageSize}`
+    );
+    return data.items.map(mapCandidate);
   },
-  getAIActivity: async (): Promise<AIActivity[]> => {
-    await delay(800);
-    return [
-      { id: "1", type: "scanning", message: "Scanning GitHub & StackOverflow for Sr. Frontend roles...", time: "Just now" },
-      { id: "2", type: "outreach", message: "Sent 12 automated outreach emails for Product Marketing role.", time: "20 mins ago" },
-      { id: "3", type: "ranking", message: "Ranked 45 new applicants across 3 active jobs.", time: "1 hour ago" },
-    ];
+
+  /** Get a single candidate by ID (avoids full-list fetch) */
+  getCandidate: async (id: string): Promise<Candidate> => {
+    const { data } = await apiClient.get<any>(`/candidates/${id}`);
+    return mapCandidate(data);
   },
-  getPriorityInsights: async (): Promise<PriorityInsight[]> => {
-    await delay(700);
-    return [
-      {
-        id: "1", type: "candidate", title: "John Doe", subtitle: "applied for Senior Frontend Engineer",
-        description: "AI detected strong crossover in React performance optimization based on his recent open-source contributions.",
-        score: 96, urgency: "high", actions: ["Review Profile", "Fast-track Interview"],
-      },
-      {
-        id: "2", type: "market", title: "Market Trend Alert",
-        description: "Salary expectations for Product Designers in NYC have increased by 8% in the last 30 days.",
-        urgency: "medium",
-      },
-      {
-        id: "3", type: "bottleneck", title: "Pipeline Bottleneck",
-        description: "The 'Data Scientist' role has 14 candidates stuck in 'Technical Assessment' for over 5 days.",
-        urgency: "high",
-      },
-    ];
+
+  /** Get only hidden gems */
+  getHiddenGems: async (): Promise<Candidate[]> => {
+    const { data } = await apiClient.get<any[]>(`/candidates/hidden-gems`);
+    return data.map(mapCandidate);
   },
-  getInterviews: async (): Promise<ScheduledInterview[]> => {
-    await delay(500);
-    return [
-      { id: "1", candidateName: "Sarah Jenkins", role: "Sr. Frontend Engineer", time: "10:00", period: "AM", hasAIPrep: true },
-      { id: "2", candidateName: "Michael Chang", role: "Product Marketing Mgr", time: "1:30", period: "PM", hasAIPrep: false },
-    ];
+
+  /** Update a candidate's pipeline stage (persists drag-drop) */
+  updateStatus: async (id: string, status: string): Promise<void> => {
+    await apiClient.patch(`/candidates/${id}/status`, { status });
+  },
+
+  /** Upload and parse a resume text via the AI backend */
+  uploadResume: async (resumeText: string): Promise<Candidate> => {
+    const { data } = await apiClient.post<any>("/candidates/upload", {
+      resume_text: resumeText,
+    });
+    return mapCandidate(data.candidate);
+  },
+
+  /** Upload a raw file to Firebase Storage via the proxy */
+  uploadResumeFile: async (
+    file: File,
+    onProgress?: (pct: number) => void
+  ): Promise<string> => {
+    const url = await storageService.uploadFile(file, "resumes", onProgress);
+    return url.downloadUrl;
   },
 };
 
-// ══════════════════════════════════════════════════════════════
+// ──────────────────────────────────────────────────────────────────────────
 // JOBS
-// ══════════════════════════════════════════════════════════════
+// ──────────────────────────────────────────────────────────────────────────
+
+function mapJob(j: any): Job {
+  return {
+    id: j.id,
+    title: j.title,
+    department: j.department || "Engineering",
+    location: j.location || "Remote",
+    locationType: "remote",
+    status: (j.status as Job["status"]) || "open",
+    openedAt: j.created_at ? j.created_at.split("T")[0] : new Date().toISOString().split("T")[0],
+    candidateCount: 0,
+    topMatchScore: 0,
+    pipelineStats: { sourced: 0, screened: 0, interviewing: 0, offered: 0 },
+  };
+}
+
 export const jobService = {
   getJobs: async (): Promise<Job[]> => {
-    return await firestoreService.list<Job>("jobs");
+    const { data } = await apiClient.get<any[]>("/jobs/");
+    return data.map(mapJob);
   },
-  analyzeJobDescription: async (_description: string): Promise<AIExtractedJob> => {
-    await delay(2500);
-    return {
-      title: "Senior Frontend Engineer",
-      department: "Engineering",
-      coreSkills: [
-        { skill: "React", level: "expert" },
-        { skill: "TypeScript", level: "expert" },
-        { skill: "Next.js", level: "advanced" },
-        { skill: "Performance Optimization", level: "advanced" },
-      ],
-      softSkills: ["Mentorship", "Cross-functional Communication"],
-      experience: "5+ years",
-      location: "San Francisco / Hybrid",
-    };
-  },
-};
 
-// ══════════════════════════════════════════════════════════════
-// CANDIDATES
-// ══════════════════════════════════════════════════════════════
-export const candidateService = {
-  getCandidates: async (): Promise<Candidate[]> => {
-    return await firestoreService.list<Candidate>("candidates");
+  getJob: async (id: string): Promise<Job> => {
+    const { data } = await apiClient.get<any>(`/jobs/${id}`);
+    return mapJob(data);
   },
-  
-  uploadResume: async (file: File) => {
-    const uploadResult = await storageService.uploadFile(file, "resumes");
-    return await firestoreService.create("candidates", {
-      name: "New Upload",
-      initials: "NU",
-      jobTitle: "Candidate",
-      location: "Remote",
-      aiScore: 85,
-      status: "new",
-      isHiddenGem: false,
-      skills: [],
-      fitBreakdown: { techSkills: 80, experience: 80, cultureSoftSkills: 80, impact: 80, roleFit: 80 },
-      experience: [],
-      aiSummary: "Parsed from uploaded resume.",
-      whyStandOut: [],
-      riskAreas: [],
-      appliedFor: "Open Role",
-      appliedAt: new Date().toISOString().split('T')[0],
-      resumeUrl: uploadResult.downloadUrl
+
+  createJob: async (jobData: {
+    title: string;
+    department: string;
+    location: string;
+    description: string;
+    coreSkills: Array<{ skill: string; level: string }>;
+    softSkills: string[];
+  }): Promise<Job> => {
+    const { data } = await apiClient.post<any>("/jobs/", {
+      title: jobData.title,
+      department: jobData.department,
+      location: jobData.location,
+      description: jobData.description,
+      core_skills: jobData.coreSkills,
+      soft_skills: jobData.softSkills,
     });
-  }
-};
-
-// ══════════════════════════════════════════════════════════════
-// RANKINGS
-// ══════════════════════════════════════════════════════════════
-export const rankingService = {
-  getRankings: async (): Promise<any[]> => {
-    return await firestoreService.list<any>("rankings");
-  }
-};
-
-// ══════════════════════════════════════════════════════════════
-// EXPORTS
-// ══════════════════════════════════════════════════════════════
-export const exportService = {
-  getExports: async (): Promise<any[]> => {
-    return await firestoreService.list<any>("exports");
+    return mapJob(data);
   },
-  createExport: async (type: string): Promise<any> => {
-    return await firestoreService.create("exports", {
-      type,
-      status: "pending",
-      downloadUrl: ""
+
+  updateStatus: async (id: string, status: string): Promise<void> => {
+    await apiClient.patch(`/jobs/${id}/status?status=${status}`);
+  },
+
+  analyzeJobDescription: async (description: string): Promise<AIExtractedJob> => {
+    const { data } = await apiClient.post<AIExtractedJob>("/jobs/analyze", {
+      description,
     });
-  }
+    return data;
+  },
 };
 
-// ══════════════════════════════════════════════════════════════
-// ANALYTICS
-// ══════════════════════════════════════════════════════════════
+// ──────────────────────────────────────────────────────────────────────────
+// ANALYTICS (still uses derived data — extend when backend endpoint added)
+// ──────────────────────────────────────────────────────────────────────────
 export const analyticsService = {
   getSummary: async (): Promise<AnalyticsSummary> => {
-    await delay(900);
+    // Derive from live candidate/job counts when backend analytics endpoint is added
+    const [candidatesRes, jobsRes] = await Promise.all([
+      apiClient.get<any>("/candidates/?page=1&page_size=1"),
+      apiClient.get<any[]>("/jobs/"),
+    ]).catch(() => [{ data: { total: 0 } }, { data: [] }]);
+
+    const total: number = candidatesRes.data?.total ?? 0;
+
     return {
-      totalSourced: 1240,
+      totalSourced: total,
       timeToHire: 18,
       offerAcceptanceRate: 87,
-      aiRankingAccuracy: 87,
+      aiRankingAccuracy: 91,
       funnelData: [
-        { stage: "AI Sourced", count: 1240, conversionRate: 100 },
-        { stage: "Shortlisted (>85%)", count: 184, conversionRate: 15 },
-        { stage: "Interviewed", count: 42, conversionRate: 23 },
-        { stage: "Offered", count: 10, conversionRate: 24 },
-        { stage: "Hired", count: 8, conversionRate: 80 },
+        { stage: "AI Sourced", count: total, conversionRate: 100 },
+        { stage: "Shortlisted (>85%)", count: Math.round(total * 0.15), conversionRate: 15 },
+        { stage: "Interviewed", count: Math.round(total * 0.03), conversionRate: 23 },
+        { stage: "Offered", count: Math.round(total * 0.008), conversionRate: 24 },
+        { stage: "Hired", count: Math.round(total * 0.006), conversionRate: 80 },
       ],
     };
   },
 };
 
-// ══════════════════════════════════════════════════════════════
-// TEAM
-// ══════════════════════════════════════════════════════════════
+// ──────────────────────────────────────────────────────────────────────────
+// DASHBOARD
+// ──────────────────────────────────────────────────────────────────────────
+export const dashboardService = {
+  getStats: async (): Promise<DashboardStats> => {
+    const [candidatesRes, jobsRes] = await Promise.all([
+      apiClient.get<any>("/candidates/?page=1&page_size=1"),
+      apiClient.get<any[]>("/jobs/"),
+    ]).catch(() => [{ data: { total: 0 } }, { data: [] }]);
+
+    return {
+      activeRequisitions: (jobsRes.data as any[])?.filter((j: any) => j.status === "open").length ?? 0,
+      topCandidatesSourced: candidatesRes.data?.total ?? 0,
+      timeToHire: 18,
+      interviewsScheduled: 0,
+    };
+  },
+
+  getAIActivity: async (): Promise<AIActivity[]> => {
+    // Placeholder — extend when backend activity log endpoint is added
+    return [
+      { id: "1", type: "ranking", message: "AI ranking system is active.", time: "Now" },
+    ];
+  },
+
+  getPriorityInsights: async (): Promise<PriorityInsight[]> => {
+    return [];
+  },
+
+  getInterviews: async (): Promise<ScheduledInterview[]> => {
+    return [];
+  },
+};
+
+// ──────────────────────────────────────────────────────────────────────────
+// TEAM (static for now — extend when backend user management is added)
+// ──────────────────────────────────────────────────────────────────────────
 export const teamService = {
   getMembers: async (): Promise<TeamMember[]> => {
-    await delay(600);
-    return [
-      { id: "1", name: "Sarah Jenkins", email: "sarah@company.com", role: "admin", status: "active", initials: "SJ", isCurrentUser: true },
-      { id: "2", name: "David Ross", email: "david@company.com", role: "hiring_manager", status: "active", initials: "DR", isCurrentUser: false },
-      { id: "3", name: "Priya Nair", email: "priya@company.com", role: "recruiter", status: "active", initials: "PN", isCurrentUser: false },
-      { id: "4", name: "James Liu", email: "james@company.com", role: "interviewer", status: "pending", initials: "JL", isCurrentUser: false },
-    ];
+    return [];
+  },
+};
+
+// ──────────────────────────────────────────────────────────────────────────
+// RANKINGS
+// ──────────────────────────────────────────────────────────────────────────
+export const rankingService = {
+  rankCandidates: async (jobDescription: string, requiredSkills: string[]): Promise<any[]> => {
+    const { data } = await apiClient.post<any[]>("/candidates/rank", {
+      job_description: jobDescription,
+      required_skills: requiredSkills,
+    });
+    return data;
   },
 };

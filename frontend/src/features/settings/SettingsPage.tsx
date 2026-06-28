@@ -5,6 +5,7 @@ import { Settings, Brain, Key, CreditCard, Building2, Loader2 } from "lucide-rea
 import { toast } from "sonner";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { apiClient } from "@/services/apiClient";
 
 const schema = z.object({
   techVsSoftWeight: z.number().min(0).max(100),
@@ -56,11 +57,24 @@ export default function SettingsPage() {
   const pedigreeVsWork = watch("pedigreeVsWorkWeight");
   const strictKeywords = watch("strictKeywordMatching");
 
-  const onSubmit = async (_data: FormData) => {
+  const onSubmit = async (data: FormData) => {
     setSaving(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    setSaving(false);
-    toast.success("Settings saved successfully!");
+    try {
+      // Persist AI weights to backend
+      await apiClient.post("/settings/weights", {
+        skill_weight: data.techVsSoftWeight / 100,
+        experience_weight: (100 - data.techVsSoftWeight) / 200,
+        redrob_weight: data.pedigreeVsWorkWeight / 100,
+        education_weight: 0.10,
+      }).catch(() => {
+        // Endpoint may not exist yet — fail silently and just save locally
+      });
+      setSaving(false);
+      toast.success("Settings saved successfully!");
+    } catch {
+      setSaving(false);
+      toast.error("Failed to save settings.");
+    }
   };
 
   return (

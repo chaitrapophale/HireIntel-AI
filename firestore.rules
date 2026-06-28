@@ -1,0 +1,15 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Only allow users to read and write their own user profile document
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Explicitly deny everything else. Backend API (FastAPI) will handle other data interactions 
+    // securely via the Firebase Admin SDK (which bypasses these client rules).
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

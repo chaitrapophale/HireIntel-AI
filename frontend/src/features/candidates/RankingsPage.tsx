@@ -4,7 +4,7 @@ import {
   useReactTable, getCoreRowModel, getSortedRowModel,
   getFilteredRowModel, flexRender, type ColumnDef, type SortingState,
 } from "@tanstack/react-table";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { ChevronUp, ChevronDown, ArrowRight, Trophy } from "lucide-react";
 import { candidateService } from "@/services";
 import type { Candidate } from "@/types";
@@ -39,10 +39,10 @@ export default function RankingsPage() {
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["candidates"],
-    queryFn: candidateService.getCandidates,
+    queryFn: () => candidateService.getCandidates(),
   });
 
-  const columns: ColumnDef<Candidate>[] = [
+  const columns: ColumnDef<Candidate>[] = useMemo(() => [
     {
       id: "rank",
       header: "Rank",
@@ -113,7 +113,7 @@ export default function RankingsPage() {
         </button>
       ),
     },
-  ];
+  ], [navigate]);
 
   const table = useReactTable({
     data,

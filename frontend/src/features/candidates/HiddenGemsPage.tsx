@@ -8,7 +8,7 @@ export default function HiddenGemsPage() {
   const navigate = useNavigate();
   const { data = [], isLoading } = useQuery({
     queryKey: ["candidates"],
-    queryFn: candidateService.getCandidates,
+    queryFn: () => candidateService.getCandidates(),
   });
 
   const gems = data.filter((c) => c.isHiddenGem);

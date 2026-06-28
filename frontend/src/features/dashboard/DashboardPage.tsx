@@ -4,7 +4,9 @@ import {
   Briefcase, Users, Clock, CalendarCheck, Sparkles,
   TrendingUp, AlertTriangle, ArrowRight, Activity,
 } from "lucide-react";
+import { useEffect } from "react";
 import { dashboardService } from "@/services";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import type { PriorityInsight } from "@/types";
 
@@ -44,10 +46,23 @@ const urgencyColor: Record<PriorityInsight["urgency"], string> = {
 };
 
 export default function DashboardPage() {
+  const { currentUser } = useAuth();
   const stats = useQuery({ queryKey: ["dashboard-stats"], queryFn: dashboardService.getStats });
   const insights = useQuery({ queryKey: ["dashboard-insights"], queryFn: dashboardService.getPriorityInsights });
   const interviews = useQuery({ queryKey: ["dashboard-interviews"], queryFn: dashboardService.getInterviews });
   const activity = useQuery({ queryKey: ["dashboard-activity"], queryFn: dashboardService.getAIActivity });
+
+  useEffect(() => {
+    document.title = "Dashboard — HireIntel AI";
+    return () => { document.title = "HireIntel AI"; };
+  }, []);
+
+  // Dynamic greeting based on time of day
+  const hour = new Date().getHours();
+  const timeOfDay = hour < 12 ? "Morning" : hour < 17 ? "Afternoon" : "Evening";
+  const firstName = currentUser?.displayName?.split(" ")[0] ||
+    currentUser?.email?.split("@")[0] ||
+    "there";
 
   return (
     <div className="px-6 py-6 space-y-6 pb-12 max-w-7xl mx-auto">
@@ -55,7 +70,7 @@ export default function DashboardPage() {
       <motion.div initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.05 } } }}>
         <motion.div variants={fadeUp} className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-on-surface tracking-tight">Morning, Sarah 👋</h1>
+            <h1 className="text-3xl font-bold text-on-surface tracking-tight">{timeOfDay}, {firstName} 👋</h1>
             <p className="text-on-surface-variant mt-1">
               The AI analyzed <span className="font-bold text-primary">342</span> new candidates overnight.
             </p>

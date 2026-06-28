@@ -1,10 +1,10 @@
-import { Outlet, Navigate } from "react-router-dom";
+import { Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { TopNav } from "./TopNav";
-import { useAuthStore } from "@/store";
+
+// Removed dead imports: Navigate (unused), useAuthStore (never populated from Firebase)
 
 export function AppLayout() {
-
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />

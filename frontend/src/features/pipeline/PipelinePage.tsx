@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, ArrowRight, MapPin, Briefcase, GripVertical } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -106,12 +106,13 @@ function CandidateCard({
 }
 
 export default function PipelinePage() {
+  const queryClient = useQueryClient();
   const { data = [], isLoading } = useQuery({
     queryKey: ["candidates"],
-    queryFn: candidateService.getCandidates,
+    queryFn: () => candidateService.getCandidates(),
   });
 
-  // Local state to manage stage overrides (drag-and-drop moves)
+  // Optimistic local state for instant UI feedback while API saves
   const [stageMap, setStageMap] = useState<Record<string, CandidateStatus>>({});
   const [dragOver, setDragOver] = useState<CandidateStatus | null>(null);
   const dragId = useRef<string | null>(null);
@@ -123,16 +124,31 @@ export default function PipelinePage() {
     e.dataTransfer.effectAllowed = "move";
   };
 
-  const handleDrop = (e: React.DragEvent, targetStage: CandidateStatus) => {
+  const handleDrop = async (e: React.DragEvent, targetStage: CandidateStatus) => {
     e.preventDefault();
     if (!dragId.current) return;
     const id = dragId.current;
-    setStageMap((prev) => ({ ...prev, [id]: targetStage }));
     dragId.current = null;
     setDragOver(null);
+
+    // Optimistic update
+    setStageMap((prev) => ({ ...prev, [id]: targetStage }));
     const candidate = data.find((c) => c.id === id);
-    if (candidate) {
-      toast.success(`${candidate.name} moved to ${STAGES.find((s) => s.id === targetStage)?.label}`);
+    const stageName = STAGES.find((s) => s.id === targetStage)?.label ?? targetStage;
+
+    try {
+      await candidateService.updateStatus(id, targetStage);
+      // Invalidate so data is fresh on next focus
+      queryClient.invalidateQueries({ queryKey: ["candidates"] });
+      if (candidate) toast.success(`${candidate.name} moved to ${stageName}`);
+    } catch {
+      // Rollback optimistic update
+      setStageMap((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      toast.error(`Failed to update ${candidate?.name ?? "candidate"}'s stage. Please try again.`);
     }
   };
 

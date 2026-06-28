@@ -79,11 +79,17 @@ export function Sidebar() {
         </button>
 
         <div className="border-t border-white/10 pt-3 space-y-0.5">
-          <button className="w-full flex items-center gap-3 px-3 py-2 text-white/50 hover:text-white transition-colors text-xs">
+          <button 
+            onClick={() => toast.info("Support center coming soon!")}
+            className="w-full flex items-center gap-3 px-3 py-2 text-white/50 hover:text-white transition-colors text-xs"
+          >
             <HelpCircle className="w-4 h-4" />
             Support
           </button>
-          <button className="w-full flex items-center gap-3 px-3 py-2 text-white/50 hover:text-white transition-colors text-xs">
+          <button 
+            onClick={() => toast.info("No new updates this week.")}
+            className="w-full flex items-center gap-3 px-3 py-2 text-white/50 hover:text-white transition-colors text-xs"
+          >
             <Sparkles className="w-4 h-4" />
             What's New
           </button>

@@ -25,7 +25,7 @@ export function TopNav() {
 
   const { data: candidates = [] } = useQuery({
     queryKey: ["candidates"],
-    queryFn: candidateService.getCandidates,
+    queryFn: () => candidateService.getCandidates(),
   });
   const { data: jobs = [] } = useQuery({
     queryKey: ["jobs"],

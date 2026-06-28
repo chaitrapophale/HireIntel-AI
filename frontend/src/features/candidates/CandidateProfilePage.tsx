@@ -5,24 +5,30 @@ import { motion } from "framer-motion";
 import {
   RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer, Tooltip,
 } from "recharts";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { X, Send } from "lucide-react";
 import { candidateService } from "@/services";
 import { cn } from "@/lib/utils";
 
 export default function CandidateProfilePage() {
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [showOutreach, setShowOutreach] = useState(false);
   const [message, setMessage] = useState("");
 
-  const { data: candidates, isLoading } = useQuery({
-    queryKey: ["candidates"],
-    queryFn: candidateService.getCandidates,
+  // ── Dedicated single-candidate query — no full-list fetch ─────────────
+  const { data: candidate, isLoading, isError } = useQuery({
+    queryKey: ["candidate", id],
+    queryFn: () => candidateService.getCandidate(id!),
+    enabled: !!id,
   });
 
-  const candidate = candidates?.find((c) => c.id === id);
+  // ── Page title update ─────────────────────────────────────────────────
+  useMemo(() => {
+    if (candidate) document.title = `${candidate.name} — HireIntel AI`;
+    return () => { document.title = "HireIntel AI"; };
+  }, [candidate]);
 
   if (isLoading) {
     return (
@@ -32,7 +38,7 @@ export default function CandidateProfilePage() {
     );
   }
 
-  if (!candidate) {
+  if (isError || !candidate) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <p className="text-on-surface-variant">Candidate not found.</p>
@@ -94,10 +100,10 @@ export default function CandidateProfilePage() {
               </span>
             </div>
             <div className="flex gap-2 mt-2">
-              <a href="#" className="w-7 h-7 rounded-full bg-surface-container flex items-center justify-center text-on-surface hover:text-primary hover:bg-primary/10 transition-colors">
+              <a href="#" aria-label="LinkedIn" className="w-7 h-7 rounded-full bg-surface-container flex items-center justify-center text-on-surface hover:text-primary hover:bg-primary/10 transition-colors">
                 <Link2 className="w-3.5 h-3.5" />
               </a>
-              <a href="#" className="w-7 h-7 rounded-full bg-surface-container flex items-center justify-center text-on-surface hover:text-primary hover:bg-primary/10 transition-colors">
+              <a href="#" aria-label="GitHub" className="w-7 h-7 rounded-full bg-surface-container flex items-center justify-center text-on-surface hover:text-primary hover:bg-primary/10 transition-colors">
                 <Code2 className="w-3.5 h-3.5" />
               </a>
             </div>
@@ -114,7 +120,7 @@ export default function CandidateProfilePage() {
           <div className="flex gap-2">
             <button
               onClick={() => {
-                setMessage(`Hi ${candidate.name.split(" ")[0]},\n\nI was really impressed by your background, particularly your work at ${candidate.experience[0]?.company || 'your recent roles'}. Your deep expertise aligns perfectly with our ${candidate.appliedFor} role.\n\nWould you be open to a brief chat this week to discuss?`);
+                setMessage(`Hi ${candidate.name.split(" ")[0]},\n\nI was really impressed by your background, particularly your work at ${candidate.experience[0]?.company || "your recent roles"}. Your deep expertise aligns perfectly with our ${candidate.appliedFor} role.\n\nWould you be open to a brief chat this week to discuss?`);
                 setShowOutreach(true);
               }}
               className="flex-1 bg-surface border border-outline-variant py-2 rounded-xl font-bold text-on-surface hover:bg-surface-container transition-all text-sm"
@@ -170,32 +176,30 @@ export default function CandidateProfilePage() {
           {/* Experience Timeline */}
           <div className="glass-card rounded-2xl p-6 border border-outline-variant/50">
             <h2 className="font-bold text-on-surface mb-5">Experience Analysis</h2>
-            <div className="relative border-l-2 border-surface-container-highest ml-3 space-y-8 pb-2">
-              {candidate.experience.map((exp) => (
-                <div key={exp.id} className="relative pl-6">
-                  <div className={cn(
-                    "absolute w-4 h-4 rounded-full -left-[9px] top-1 border-4 border-white",
-                    exp.endDate === null ? "bg-primary" : "bg-surface-container-highest"
-                  )} />
-                  <div className="flex justify-between items-start mb-1">
-                    <div>
-                      <h3 className="font-bold text-on-surface text-lg">{exp.title}</h3>
-                      <p className="text-on-surface-variant font-medium">{exp.company}</p>
+            {candidate.experience.length === 0 ? (
+              <p className="text-sm text-on-surface-variant">No experience records available.</p>
+            ) : (
+              <div className="relative border-l-2 border-surface-container-highest ml-3 space-y-8 pb-2">
+                {candidate.experience.map((exp) => (
+                  <div key={exp.id} className="relative pl-6">
+                    <div className={cn(
+                      "absolute w-4 h-4 rounded-full -left-[9px] top-1 border-4 border-white",
+                      exp.endDate === null ? "bg-primary" : "bg-surface-container-highest"
+                    )} />
+                    <div className="flex justify-between items-start mb-1">
+                      <div>
+                        <h3 className="font-bold text-on-surface text-lg">{exp.title}</h3>
+                        <p className="text-on-surface-variant font-medium">{exp.company}</p>
+                      </div>
+                      <span className="text-xs text-on-surface-variant bg-surface-container px-2 py-1 rounded-lg shrink-0">
+                        {exp.startDate} – {exp.endDate ?? "Present"}
+                      </span>
                     </div>
-                    <span className="text-xs text-on-surface-variant bg-surface-container px-2 py-1 rounded-lg shrink-0">
-                      {exp.startDate} – {exp.endDate ?? "Present"}
-                    </span>
+                    <p className="text-sm text-on-surface-variant mt-2 leading-relaxed">{exp.description}</p>
                   </div>
-                  <p className="text-sm text-on-surface-variant mt-2 leading-relaxed">{exp.description}</p>
-                  {exp.aiContext && (
-                    <div className="bg-primary/5 rounded-lg p-3 text-sm border border-primary/10 flex gap-2 items-start mt-3">
-                      <Sparkles className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                      <div><span className="font-bold text-primary">AI Context:</span> {exp.aiContext}</div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -235,16 +239,20 @@ export default function CandidateProfilePage() {
           {/* Skills */}
           <div className="glass-card rounded-2xl p-5 border border-outline-variant/50">
             <h2 className="font-bold text-on-surface mb-4">Verified Skills</h2>
-            <div className="flex flex-wrap gap-2">
-              {candidate.skills.map((skill) => (
-                <span key={skill.name} className={cn("px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1", skillLevelColor[skill.level])}>
-                  {skill.name}
-                  {skill.verified && <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60" />}
-                </span>
-              ))}
-            </div>
+            {candidate.skills.length === 0 ? (
+              <p className="text-sm text-on-surface-variant">No skills recorded.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {candidate.skills.map((skill) => (
+                  <span key={skill.name} className={cn("px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1", skillLevelColor[skill.level])}>
+                    {skill.name}
+                    {skill.verified && <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60" />}
+                  </span>
+                ))}
+              </div>
+            )}
             <p className="text-[10px] text-on-surface-variant mt-4 pt-3 border-t border-outline-variant/30">
-              Skills verified via GitHub analysis and role descriptions.
+              Skills extracted via AI resume parsing.
             </p>
           </div>
         </div>

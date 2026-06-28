@@ -93,5 +93,11 @@ export const migrateMockData = async () => {
   }
 };
 
-// Expose to window for easy execution from the browser console
-(window as any).migrateMockData = migrateMockData;
+
+// Development-only helper — NOT exposed to window in production
+// To seed data during development, call migrateMockData() directly in DevTools console
+// after importing it: import { migrateMockData } from './utils/migrationUtils'
+if (import.meta.env.DEV) {
+  (window as any).__hireintel_migrateMockData = migrateMockData;
+}
+
