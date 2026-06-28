@@ -133,7 +133,6 @@ def update_job_status(
 
 
 @router.post("/analyze")
-@limiter.limit("10/minute")
 async def analyze_job_description(
     request: Request,
     body: AnalyzeJobRequest,

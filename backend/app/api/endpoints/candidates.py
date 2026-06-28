@@ -5,9 +5,10 @@ import os
 import time
 import urllib.parse
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Annotated
 
 import httpx
+import fastapi
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
@@ -117,7 +118,7 @@ async def rank_candidates(req: RankRequestDataset, db: Session = Depends(get_db)
         raise HTTPException(status_code=500, detail=f"Ranking failed: {str(e)}")
 
 @router.post("/upload-dataset")
-async def upload_dataset(file: UploadFile = File(...), db: Session = Depends(get_db), user_id: str = Depends(get_current_user)):
+async def upload_dataset(file: UploadFile = File(...), db: Session = Depends(get_db), user_id: str = Depends(get_current_user)) -> dict:
     try:
         summary = await process_dataset_upload(file, db, user_id=user_id)
         return summary
@@ -177,14 +178,13 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user_id: 
     return {"message": "Candidate deleted successfully", "id": candidate_id}
 
 @router.post("/upload_proxy")
-@limiter.limit("20/minute")
 async def upload_proxy(
     request: Request,
     file: UploadFile = File(...),
     folder: str = Form(...),
     id_token: str = Form(...),
     user_id: str = Depends(get_current_user),
-):
+) -> dict:
     """
     Proxy upload to Firebase Storage REST API to bypass CORS.
     Now includes:

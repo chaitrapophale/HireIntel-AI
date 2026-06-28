@@ -208,6 +208,7 @@ export default function LoginPage() {
               <div className="relative">
                 <input
                   {...register("password")}
+                  autoComplete="current-password"
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   className={cn(
