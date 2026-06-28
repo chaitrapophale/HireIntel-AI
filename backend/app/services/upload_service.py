@@ -26,6 +26,21 @@ def clean_recursive(v):
         return {k: clean_recursive(val) for k, val in v.items()}
     return v
 
+
+_VALID_SKILL_LEVELS = {"expert", "advanced", "intermediate"}
+
+def _normalise_skill_level(level: str) -> str:
+    """Map any incoming skill level string to one of expert|advanced|intermediate."""
+    lvl = (level or "").lower().strip()
+    if lvl in _VALID_SKILL_LEVELS:
+        return lvl
+    if lvl in ("senior", "proficient", "high"):
+        return "expert"
+    if lvl in ("mid", "medium", "moderate"):
+        return "advanced"
+    return "intermediate"
+
+
 def map_row_to_candidate_data(row: dict) -> dict:
     row = {k: clean_recursive(v) for k, v in row.items()}
     profile = row.get("profile") or {}
@@ -73,7 +88,7 @@ def map_row_to_candidate_data(row: dict) -> dict:
             if isinstance(sk, dict):
                 skills.append({
                     "name": sk.get("name", ""),
-                    "level": sk.get("proficiency", sk.get("level", "advanced")),
+                    "level": _normalise_skill_level(sk.get("proficiency", sk.get("level", "intermediate"))),
                     "verified": sk.get("verified", True)
                 })
             elif isinstance(sk, str):

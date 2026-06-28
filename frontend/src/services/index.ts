@@ -103,6 +103,16 @@ export const candidateService = {
     return res.data;
   },
   
+  getCandidate: async (candidateId: string): Promise<Candidate> => {
+    const res = await api.get(`/candidates/${candidateId}`);
+    return res.data;
+  },
+
+  updateStatus: async (candidateId: string, status: string) => {
+    const res = await api.patch(`/candidates/${candidateId}/status`, { status });
+    return res.data;
+  },
+  
   uploadResume: async (resumeText: string) => {
     const res = await api.post("/candidates/upload", { resume_text: resumeText });
     return res.data;

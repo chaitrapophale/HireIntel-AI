@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { X, Send } from "lucide-react";
 import { candidateService } from "@/services";
 import { cn } from "@/lib/utils";
+import type { WorkExperience, SkillTag, FitBreakdown } from "@/types";
 
 export default function CandidateProfilePage() {
   const { id } = useParams<{ id: string }>();
@@ -150,7 +151,7 @@ export default function CandidateProfilePage() {
               <div className="bg-surface-container-low p-4 rounded-xl border border-outline-variant/30 mb-3">
                 <h3 className="text-xs font-bold text-on-surface uppercase tracking-wider mb-2">Why they stand out</h3>
                 <ul className="space-y-2">
-                  {candidate.whyStandOut.map((point) => (
+                  {candidate.whyStandOut.map((point: string) => (
                     <li key={point} className="flex items-start gap-2 text-sm text-on-surface-variant">
                       <CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                       <span>{point}</span>
@@ -163,7 +164,7 @@ export default function CandidateProfilePage() {
             {candidate.riskAreas.length > 0 && (
               <div className="bg-error-container/50 p-4 rounded-xl border border-error/20">
                 <h3 className="text-xs font-bold text-on-error-container uppercase tracking-wider mb-2">Potential Risk Areas</h3>
-                {candidate.riskAreas.map((risk) => (
+                {candidate.riskAreas.map((risk: string) => (
                   <p key={risk} className="flex items-start gap-2 text-sm text-on-surface-variant">
                     <AlertTriangle className="w-4 h-4 text-error shrink-0 mt-0.5" />
                     <span>{risk}</span>
@@ -180,7 +181,7 @@ export default function CandidateProfilePage() {
               <p className="text-sm text-on-surface-variant">No experience records available.</p>
             ) : (
               <div className="relative border-l-2 border-surface-container-highest ml-3 space-y-8 pb-2">
-                {candidate.experience.map((exp) => (
+                {candidate.experience.map((exp: WorkExperience) => (
                   <div key={exp.id} className="relative pl-6">
                     <div className={cn(
                       "absolute w-4 h-4 rounded-full -left-[9px] top-1 border-4 border-white",
@@ -222,7 +223,7 @@ export default function CandidateProfilePage() {
               </ResponsiveContainer>
             </div>
             <div className="w-full space-y-2 mt-2">
-              {Object.entries(candidate.fitBreakdown).map(([k, v]) => (
+              {(Object.entries(candidate.fitBreakdown) as [keyof FitBreakdown, number][]).map(([k, v]) => (
                 <div key={k}>
                   <div className="flex justify-between text-xs mb-0.5">
                     <span className="font-medium capitalize">{k.replace(/([A-Z])/g, " $1")}</span>
@@ -243,7 +244,7 @@ export default function CandidateProfilePage() {
               <p className="text-sm text-on-surface-variant">No skills recorded.</p>
             ) : (
               <div className="flex flex-wrap gap-2">
-                {candidate.skills.map((skill) => (
+                {candidate.skills.map((skill: SkillTag) => (
                   <span key={skill.name} className={cn("px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1", skillLevelColor[skill.level])}>
                     {skill.name}
                     {skill.verified && <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60" />}

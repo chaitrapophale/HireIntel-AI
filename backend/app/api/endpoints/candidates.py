@@ -24,11 +24,13 @@ from app.schemas.schemas import (
     CandidateResponse,
     CandidatePaginatedResponse,
     UpdateCandidateStatusRequest,
+    UploadResumeRequest,
 )
 
+from app.services.ai.ai_factory import get_ai_provider
 from app.services.ai.ranking_service import rank_candidates_for_job
 from app.services.upload_service import process_dataset_upload
-from app.services.vector.embeddings import delete_candidate_from_vector_db
+from app.services.vector.embeddings import delete_candidate_from_vector_db, add_candidates_to_vector_db
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -126,6 +128,136 @@ async def upload_dataset(file: UploadFile = File(...), db: Session = Depends(get
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+
+_VALID_SKILL_LEVELS = {"expert", "advanced", "intermediate"}
+
+def _normalise_skill_level(level: str) -> str:
+    """Map any incoming level string to one of the three accepted values."""
+    lvl = (level or "").lower().strip()
+    if lvl in _VALID_SKILL_LEVELS:
+        return lvl
+    if lvl in ("senior", "proficient", "high"):
+        return "expert"
+    if lvl in ("mid", "medium", "moderate"):
+        return "advanced"
+    return "intermediate"
+
+
+@router.post("/upload")
+async def upload_resume(
+    body: UploadResumeRequest,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user),
+):
+    """
+    Parse a raw resume text string with the AI provider, persist the resulting
+    candidate to SQLite, and index it in ChromaDB for vector search.
+    Returns the serialised candidate object identical to GET /{candidate_id}.
+    """
+    ai = get_ai_provider()
+    try:
+        parsed = await ai.analyze_resume(body.resume_text)
+    except Exception as e:
+        logger.error("AI resume analysis failed for user %s: %s", user_id, e)
+        raise HTTPException(status_code=502, detail="AI resume parsing failed. Please try again.")
+
+    if not parsed or not parsed.get("name"):
+        raise HTTPException(
+            status_code=422,
+            detail="Could not extract a valid candidate profile from the provided resume text.",
+        )
+
+    # Normalise skills so level is always one of expert|advanced|intermediate
+    raw_skills = parsed.get("skills") or []
+    skills = [
+        {
+            "name": s.get("name", "").strip(),
+            "level": _normalise_skill_level(s.get("level", "intermediate")),
+            "verified": False,
+        }
+        for s in raw_skills
+        if isinstance(s, dict) and s.get("name", "").strip()
+    ]
+
+    # Convert AI experience list → stored WorkExperience shape
+    raw_exp = parsed.get("experience") or []
+    experience = []
+    for ex in raw_exp:
+        if not isinstance(ex, dict):
+            continue
+        experience.append({
+            "id": str(time.time_ns()),
+            "title": ex.get("title", "Unknown Role"),
+            "company": ex.get("company", "Unknown Company"),
+            "startDate": "N/A",
+            "endDate": None,
+            "description": ex.get("description", ""),
+        })
+
+    candidate_id = f"CAND_{str(time.time_ns())[-8:]}"
+
+    cand = CandidateModel(
+        id=candidate_id,
+        user_id=user_id,
+        full_name=parsed.get("name", "Unknown Candidate"),
+        email=parsed.get("email") or None,
+        phone=parsed.get("phone") or None,
+        skills=skills,
+        experience=experience,
+        resume_text=body.resume_text,
+        linkedin=None,
+        github=None,
+        portfolio=None,
+        overall_score=0.0,
+        skill_score=0.0,
+        experience_score=0.0,
+        behavioral_score=0.0,
+        is_hidden_gem=False,
+        status="new",
+    )
+    db.add(cand)
+    db.commit()
+    db.refresh(cand)
+    logger.info("Resume uploaded and parsed for user %s → candidate %s", user_id, candidate_id)
+
+    # Index in ChromaDB (best-effort — don't fail the request if vector store is unavailable)
+    try:
+        add_candidates_to_vector_db([{
+            "id": cand.id,
+            "current_title": parsed.get("current_title", experience[0]["title"] if experience else "Unknown Role"),
+            "summary": parsed.get("summary", body.resume_text[:500]),
+            "skills": skills,
+            "experience": experience,
+            "years_of_experience": float(parsed.get("years_of_experience", 0)),
+            "location": parsed.get("location", "Remote"),
+        }])
+    except Exception as e:
+        logger.warning("ChromaDB indexing failed for candidate %s: %s", candidate_id, e)
+
+    title = experience[0]["title"] if experience else "Unknown Role"
+    return {
+        "id": cand.id,
+        "name": cand.full_name,
+        "initials": "".join([p[0] for p in (cand.full_name or "U").split() if p]).upper()[:2],
+        "jobTitle": title,
+        "location": parsed.get("location", "Remote"),
+        "aiScore": 0,
+        "status": cand.status,
+        "isHiddenGem": cand.is_hidden_gem,
+        "skills": cand.skills,
+        "fitBreakdown": {
+            "techSkills": 0, "experience": 0,
+            "cultureSoftSkills": 0, "impact": 0, "roleFit": 0,
+        },
+        "experience": cand.experience,
+        "aiSummary": parsed.get("summary", "Resume uploaded. Run AI ranking to generate insights."),
+        "whyStandOut": [],
+        "riskAreas": [],
+        "appliedFor": title,
+        "appliedAt": cand.created_at.isoformat() if cand.created_at else "",
+    }
+
 
 @router.get("/{candidate_id}")
 def get_candidate(candidate_id: str, db: Session = Depends(get_db), user_id: str = Depends(get_current_user)):

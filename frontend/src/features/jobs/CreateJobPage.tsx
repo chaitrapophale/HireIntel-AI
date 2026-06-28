@@ -33,15 +33,6 @@ export default function CreateJobPage() {
     },
     onError: (err: Error) => toast.error(err.message || "Extraction failed. Please try again."),
   });
-  const saveMutation = useMutation({
-    mutationFn: jobService.createJob,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["jobs"] });
-      toast.success("Requisition saved and opened successfully!");
-      navigate("/app/jobs");
-    },
-    onError: () => toast.error("Failed to save requisition. Please try again."),
-  });
 
   const onDrop = useCallback(async (files: File[]) => {
     const file = files[0];
