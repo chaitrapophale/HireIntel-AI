@@ -20,8 +20,8 @@ var/
 sdist/
 develop-eggs/
 .installed.cfg
-lib/
-lib64/
+/lib/
+/lib64/
 *.pyc
 
 # Virtual environments
@@ -81,4 +81,5 @@ Thumbs.db
 *.pth
 *.bin
 models/
+!backend/app/models/
 sentence_transformers/

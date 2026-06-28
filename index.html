@@ -142,6 +142,7 @@
     padding: 1.5px;
     background: linear-gradient(135deg, #15157d, #5516be);
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
     pointer-events: none;
@@ -182,6 +183,7 @@
     background: linear-gradient(90deg, #464652 0%, #15157d 50%, #464652 100%);
     background-size: 200% auto;
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
     animation: shimmer 3s linear infinite;
   }
@@ -1717,7 +1719,7 @@
                 </div>
               </div>
               
-              <button class="w-full bg-primary text-white py-3 rounded-lg font-bold shadow hover:bg-primary-container transition-all mt-4">
+              <button onclick="navigateTo('dashboard'); alert('Requisition saved and opened successfully!');" class="w-full bg-primary text-white py-3 rounded-lg font-bold shadow hover:bg-primary-container transition-all mt-4">
                 Save & Open Requisition
               </button>
             </div>

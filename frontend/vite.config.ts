@@ -10,4 +10,13 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  optimizeDeps: {
+    exclude: [
+      "@tailwindcss/oxide",
+      "@tailwindcss/oxide-win32-x64-msvc",
+    ],
+  },
+  ssr: {
+    noExternal: [],
+  },
 });

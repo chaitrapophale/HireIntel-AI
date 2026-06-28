@@ -1,9 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Briefcase, Plus, MapPin, Users } from "lucide-react";
+import { Briefcase, Plus, MapPin, Users, Trash2 } from "lucide-react";
 import { jobService } from "@/services";
 import { cn } from "@/lib/utils";
 import type { Job } from "@/types";
+import { toast } from "sonner";
 
 const statusColor: Record<Job["status"], string> = {
   open: "bg-secondary-fixed text-on-secondary-fixed",
@@ -14,10 +15,29 @@ const statusColor: Record<Job["status"], string> = {
 
 export default function JobsPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
   const { data = [], isLoading } = useQuery({
     queryKey: ["jobs"],
     queryFn: jobService.getJobs,
   });
+
+  const handleDelete = async (e: React.MouseEvent, jobId: string) => {
+    e.stopPropagation(); // Avoid click-through propagation to card navigation
+    if (!confirm("Are you sure you want to delete this requisition?")) {
+      return;
+    }
+
+    const toastId = toast.loading("Deleting requisition...");
+    try {
+      await jobService.deleteJob(jobId);
+      toast.success("Requisition deleted successfully!", { id: toastId });
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+    } catch {
+      toast.error("Failed to delete requisition.", { id: toastId });
+    }
+  };
 
   return (
     <div className="px-6 py-6 pb-12 max-w-7xl mx-auto space-y-5">
@@ -72,9 +92,18 @@ export default function JobsPage() {
                   <div className="w-10 h-10 rounded-xl bg-primary-fixed flex items-center justify-center">
                     <Briefcase className="w-5 h-5 text-on-primary-fixed" />
                   </div>
-                  <span className={cn("text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide", statusColor[job.status])}>
-                    {job.status.replace("_", " ")}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={cn("text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide", statusColor[job.status])}>
+                      {job.status.replace("_", " ")}
+                    </span>
+                    <button
+                      onClick={(e) => handleDelete(e, job.id)}
+                      className="text-on-surface-variant hover:text-error p-1 rounded-lg hover:bg-surface-container-low transition-colors"
+                      title="Delete Requisition"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
                 <h3 className="font-bold text-on-surface group-hover:text-primary transition-colors mb-1">{job.title}</h3>
                 <div className="text-xs text-on-surface-variant flex items-center gap-3 mb-4">
@@ -82,9 +111,9 @@ export default function JobsPage() {
                   <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{job.location}</span>
                 </div>
                 <div className="w-full bg-surface-container-highest rounded-full h-1.5 mb-3 flex gap-0.5 overflow-hidden">
-                  <div className="bg-primary h-full rounded-full" style={{ width: `${(job.pipelineStats.sourced / 100) * 60}%` }} />
-                  <div className="bg-secondary h-full" style={{ width: `${(job.pipelineStats.screened / 100) * 30}%` }} />
-                  <div className="bg-tertiary-container h-full" style={{ width: `${(job.pipelineStats.interviewing / 100) * 10}%` }} />
+                  <div className="bg-primary h-full rounded-full" style={{ width: `${((job.pipelineStats?.sourced || 0) / 100) * 60}%` }} />
+                  <div className="bg-secondary h-full" style={{ width: `${((job.pipelineStats?.screened || 0) / 100) * 30}%` }} />
+                  <div className="bg-tertiary-container h-full" style={{ width: `${((job.pipelineStats?.interviewing || 0) / 100) * 10}%` }} />
                 </div>
                 <div className="flex justify-between text-[10px] text-on-surface-variant">
                   <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {job.candidateCount} candidates</span>

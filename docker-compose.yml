@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8080"
+    environment:
+      - DATABASE_URL=sqlite:///./hireintel.db
+      - CHROMA_PERSIST_DIRECTORY=./chroma_db
+      - JWT_SECRET=your_super_secret_jwt_key_here
+      - NVIDIA_API_KEY=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
+      - NVIDIA_API_KEY_PARSE=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
+      - NVIDIA_API_KEY_EMBED=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
+      - NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
+    volumes:
+      - backend-db:/app
+      - backend-chroma:/app/chroma_db
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  backend-db:
+  backend-chroma:

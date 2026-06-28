@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, FileText, Sparkles, CheckCircle2, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
@@ -31,6 +32,15 @@ export default function CreateJobPage() {
       toast.success("AI extraction complete!");
     },
     onError: (err: Error) => toast.error(err.message || "Extraction failed. Please try again."),
+  });
+  const saveMutation = useMutation({
+    mutationFn: jobService.createJob,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      toast.success("Requisition saved and opened successfully!");
+      navigate("/app/jobs");
+    },
+    onError: () => toast.error("Failed to save requisition. Please try again."),
   });
 
   const onDrop = useCallback(async (files: File[]) => {
@@ -90,8 +100,8 @@ export default function CreateJobPage() {
         department: extracted.department || "",
         location: extracted.location || "",
         description,
-        coreSkills: extracted.coreSkills,
-        softSkills: extracted.softSkills,
+        core_skills: (extracted.coreSkills || []).map((s) => s?.skill).filter(Boolean),
+        soft_skills: extracted.softSkills || [],
       });
       // Invalidate jobs cache so the list refreshes
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
@@ -250,8 +260,8 @@ export default function CreateJobPage() {
                   <div className="bg-surface p-3 rounded-xl border border-outline-variant/50">
                     <div className="text-[10px] uppercase font-bold text-on-surface-variant mb-2">Core Technical Skills</div>
                     <div className="flex flex-wrap gap-2">
-                      {extracted.coreSkills.map((s) => (
-                        <span key={s.skill} className={cn("px-2.5 py-1 rounded-lg text-xs font-bold border", levelColors[s.level as keyof typeof levelColors] ?? levelColors.intermediate)}>
+                      {(extracted.coreSkills || []).map((s) => (
+                        <span key={s.skill} className={cn("px-2.5 py-1 rounded-lg text-xs font-bold border", levelColors[s.level as keyof typeof levelColors] || levelColors.intermediate)}>
                           {s.skill} <span className="opacity-60">({s.level})</span>
                         </span>
                       ))}
@@ -261,7 +271,7 @@ export default function CreateJobPage() {
                   <div className="bg-surface p-3 rounded-xl border border-outline-variant/50">
                     <div className="text-[10px] uppercase font-bold text-on-surface-variant mb-2">Soft Skills & Culture</div>
                     <div className="flex flex-wrap gap-2">
-                      {extracted.softSkills.map((s) => (
+                      {(extracted.softSkills || []).map((s) => (
                         <span key={s} className="px-2.5 py-1 rounded-lg text-xs font-bold bg-secondary/10 text-secondary border border-secondary/20">{s}</span>
                       ))}
                     </div>

@@ -1,5 +1,4 @@
 import os
-import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -9,20 +8,62 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from app.api.routers import api_router
+from app.core.database import engine, Base, SessionLocal
+from app.core.config import settings
+from app.core.logging import logger
+from sqlalchemy import select
 
-# ---------------------------------------------------------------------------
-# Logging
-# ---------------------------------------------------------------------------
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-)
-logger = logging.getLogger("hireintel")
+# Import models
+from app.models.job import JobModel
+from app.models.candidate import CandidateModel
+from app.models.user import User
 
 # ---------------------------------------------------------------------------
 # Database — (Schema migrations managed exclusively via Alembic)
 # ---------------------------------------------------------------------------
 # Base.metadata.create_all(bind=engine)  # REMOVED: Rely on Alembic
+
+# Seed default jobs if database is empty
+db = SessionLocal()
+try:
+    if db.execute(select(JobModel)).first() is None:
+        logger.info("Seeding default jobs...")
+        jobs = [
+            JobModel(
+                title="Senior Frontend Engineer",
+                department="Engineering",
+                location="San Francisco, CA",
+                description="We are looking for a Senior Frontend Engineer with experience in React, TypeScript, and modern styling libraries to build stunning user interfaces.",
+                core_skills=["React", "TypeScript", "TailwindCSS", "CSS"],
+                soft_skills=["Communication", "Teamwork"],
+                status="open"
+            ),
+            JobModel(
+                title="AI Research Scientist",
+                department="AI Research",
+                location="Remote",
+                description="Join our AI research team to develop advanced agentic workflows, custom embeddings architectures, and deploy LLM applications.",
+                core_skills=["Python", "PyTorch", "Embeddings", "LLMs"],
+                soft_skills=["Research", "Critical Thinking"],
+                status="open"
+            ),
+            JobModel(
+                title="Product Manager",
+                department="Product",
+                location="New York, NY",
+                description="We are looking for a Product Manager to own the lifecycle of our recruitment platform, work closely with engineering, and design workflows.",
+                core_skills=["Agile", "Roadmapping", "Product Strategy"],
+                soft_skills=["Leadership", "Stakeholder Management"],
+                status="open"
+            )
+        ]
+        db.add_all(jobs)
+        db.commit()
+        logger.info("Default jobs seeded successfully.")
+except Exception as e:
+    logger.error(f"Failed to seed default jobs: {e}")
+finally:
+    db.close()
 
 # ---------------------------------------------------------------------------
 # Rate Limiter
@@ -33,8 +74,8 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 # App
 # ---------------------------------------------------------------------------
 app = FastAPI(
-    title="HireIntel AI API",
-    description="Backend services for semantic candidate ranking and job matching.",
+    title=settings.PROJECT_NAME,
+    description="Backend services for AI recruitment.",
     version="1.0.0",
 )
 
@@ -66,7 +107,7 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 # Routers
 # ---------------------------------------------------------------------------
-app.include_router(api_router, prefix="/api/v1")
+app.include_router(api_router, prefix=settings.API_V1_STR)
 
 # ---------------------------------------------------------------------------
 # Health
