@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Bell, Settings, ChevronDown, Plus, Briefcase, Users, X } from "lucide-react";
-import { useSearchStore } from "@/store";
-import { useAuth } from "@/contexts/AuthContext";
+import { useSearchStore, useAuthStore } from "@/store";
 import { useQuery } from "@tanstack/react-query";
 import { candidateService, jobService } from "@/services";
 import { cn } from "@/lib/utils";
@@ -18,7 +17,7 @@ function useDebounce<T>(value: T, delay: number): T {
 
 export function TopNav() {
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const user = useAuthStore((state) => state.user);
   const { query, isOpen, setQuery, setOpen, clear } = useSearchStore();
   const debouncedQuery = useDebounce(query, 200);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -199,7 +198,7 @@ export function TopNav() {
           <Settings className="w-4 h-4" />
         </button>
         <div className="w-9 h-9 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container font-bold text-xs border-2 border-primary-fixed cursor-pointer">
-          {currentUser?.email?.substring(0, 2).toUpperCase() ?? "U"}
+          {user?.avatarInitials || user?.email?.substring(0, 2).toUpperCase() || "U"}
         </div>
         <button
           onClick={() => navigate("/app/jobs/create")}

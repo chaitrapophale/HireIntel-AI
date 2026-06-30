@@ -17,7 +17,8 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from app.core.database import get_db
-from app.core.firebase import get_current_user
+from app.core.security import get_current_user
+from app.models.user import User
 from app.models.candidate import CandidateModel
 
 from app.schemas.schemas import (
@@ -56,7 +57,8 @@ class RankRequestDataset(BaseModel):
     top_n: int = 100
 
 @router.get("/")
-def get_candidates(db: Session = Depends(get_db), user_id: str = Depends(get_current_user)):
+def get_candidates(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    user_id = current_user.id
     cands = db.execute(select(CandidateModel).where(CandidateModel.user_id == user_id)).scalars().all()
     res = []
     for c in cands:
@@ -97,8 +99,9 @@ def update_candidate_status(
     candidate_id: str,
     body: UpdateCandidateStatusRequest,
     db: Session = Depends(get_db),
-    user_id: str = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
+    user_id = current_user.id
     """Update a candidate's pipeline status (persists drag-drop changes)."""
     c = db.execute(
         select(CandidateModel).where(CandidateModel.id == candidate_id, CandidateModel.user_id == user_id)
@@ -112,7 +115,8 @@ def update_candidate_status(
     return {"candidate_id": candidate_id, "status": body.status}
 
 @router.post("/rank")
-async def rank_candidates(req: RankRequestDataset, db: Session = Depends(get_db), user_id: str = Depends(get_current_user)):
+async def rank_candidates(req: RankRequestDataset, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    user_id = current_user.id
     try:
         results = await rank_candidates_for_job(req.job_description, db, user_id=user_id, top_n=req.top_n)
         return results
@@ -120,7 +124,8 @@ async def rank_candidates(req: RankRequestDataset, db: Session = Depends(get_db)
         raise HTTPException(status_code=500, detail=f"Ranking failed: {str(e)}")
 
 @router.post("/upload-dataset")
-async def upload_dataset(file: UploadFile = File(...), db: Session = Depends(get_db), user_id: str = Depends(get_current_user)) -> dict:
+async def upload_dataset(file: UploadFile = File(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> dict:
+    user_id = current_user.id
     try:
         summary = await process_dataset_upload(file, db, user_id=user_id)
         return summary
@@ -148,8 +153,9 @@ def _normalise_skill_level(level: str) -> str:
 async def upload_resume(
     body: UploadResumeRequest,
     db: Session = Depends(get_db),
-    user_id: str = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
+    user_id = current_user.id
     """
     Parse a raw resume text string with the AI provider, persist the resulting
     candidate to SQLite, and index it in ChromaDB for vector search.
@@ -260,7 +266,8 @@ async def upload_resume(
 
 
 @router.get("/{candidate_id}")
-def get_candidate(candidate_id: str, db: Session = Depends(get_db), user_id: str = Depends(get_current_user)):
+def get_candidate(candidate_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    user_id = current_user.id
     c = db.execute(select(CandidateModel).where(CandidateModel.id == candidate_id, CandidateModel.user_id == user_id)).scalars().first()
     if not c:
         raise HTTPException(status_code=404, detail="Candidate not found")
@@ -297,7 +304,8 @@ def get_candidate(candidate_id: str, db: Session = Depends(get_db), user_id: str
     }
 
 @router.delete("/{candidate_id}")
-def delete_candidate(candidate_id: str, db: Session = Depends(get_db), user_id: str = Depends(get_current_user)):
+def delete_candidate(candidate_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    user_id = current_user.id
     c = db.execute(select(CandidateModel).where(CandidateModel.id == candidate_id, CandidateModel.user_id == user_id)).scalars().first()
     if not c:
         raise HTTPException(status_code=404, detail="Candidate not found")
@@ -315,8 +323,9 @@ async def upload_proxy(
     file: UploadFile = File(...),
     folder: str = Form(...),
     id_token: str = Form(...),
-    user_id: str = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
+    user_id = current_user.id
     """
     Proxy upload to Firebase Storage REST API to bypass CORS.
     Now includes:

@@ -21,3 +21,4 @@ google-auth
 passlib[bcrypt]
 openai
 google-generativeai>=0.8.0
+pyotp==2.9.0

@@ -13,7 +13,8 @@ from sqlalchemy import select
 from pydantic import BaseModel
 
 from app.core.database import get_db
-from app.core.firebase import get_current_user
+from app.core.security import get_current_user
+from app.models.user import User
 from app.models.job import JobModel
 from app.services.ai.ai_factory import get_ai_provider
 
@@ -68,7 +69,8 @@ def _serialize_job(j: JobModel) -> dict:
 # ---------------------------------------------------------------------------
 
 @router.get("/")
-def get_jobs(db: Session = Depends(get_db), user_id: str = Depends(get_current_user)):
+def get_jobs(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    user_id = current_user.id
     jobs = db.execute(select(JobModel).where(JobModel.user_id == user_id)).scalars().all()
     return [_serialize_job(j) for j in jobs]
 
@@ -77,9 +79,10 @@ def get_jobs(db: Session = Depends(get_db), user_id: str = Depends(get_current_u
 def get_job(
     job_id: str,
     db: Session = Depends(get_db),
-    user_id: str = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """Get a single job by ID."""
+    user_id = current_user.id
     j = db.execute(
         select(JobModel).where(JobModel.id == job_id, JobModel.user_id == user_id)
     ).scalars().first()
@@ -92,8 +95,9 @@ def get_job(
 def create_job(
     job_in: JobCreate,
     db: Session = Depends(get_db),
-    user_id: str = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
+    user_id = current_user.id
     job_id = f"JOB_{str(uuid.uuid4())[:8]}"
     job = JobModel(
         id=job_id,
@@ -118,9 +122,10 @@ def update_job_status(
     job_id: str,
     status: str = Query(..., pattern="^(open|on_hold|closed|draft)$"),
     db: Session = Depends(get_db),
-    user_id: str = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """Update job status (open/on_hold/closed/draft)."""
+    user_id = current_user.id
     j = db.execute(
         select(JobModel).where(JobModel.id == job_id, JobModel.user_id == user_id)
     ).scalars().first()
@@ -136,11 +141,12 @@ def update_job_status(
 async def analyze_job_description(
     request: Request,
     body: AnalyzeJobRequest,
-    user_id: str = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Extract structured data from a raw job description using AI.
     """
+    user_id = current_user.id
     ai = get_ai_provider()
     try:
         res = await ai.analyze_job(body.description)
@@ -155,8 +161,9 @@ async def analyze_job_description(
 def delete_job(
     job_id: str,
     db: Session = Depends(get_db),
-    user_id: str = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
+    user_id = current_user.id
     job = db.execute(
         select(JobModel).where(JobModel.id == job_id, JobModel.user_id == user_id)
     ).scalars().first()

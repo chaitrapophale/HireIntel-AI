@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAuthStore } from "@/store";
 import { toast } from "sonner";
 
 const navItems = [
@@ -22,11 +23,13 @@ const navItems = [
 
 export function Sidebar() {
   const navigate = useNavigate();
-  const { logout, currentUser } = useAuth();
+  const { logout: firebaseLogout } = useAuth();
+  const { logout: storeLogout, user } = useAuthStore();
 
   const handleLogout = async () => {
     try {
-      await logout();
+      await firebaseLogout().catch(() => {});
+      storeLogout();
       toast.success("Signed out successfully");
       navigate("/login");
     } catch {
@@ -112,11 +115,11 @@ export function Sidebar() {
         {/* Avatar + Logout */}
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 px-3 py-2 rounded-lg text-white/50 hover:text-white hover:bg-white/5 transition-all"
+          className="flex items-center gap-3 px-3 py-2 rounded-lg text-white/50 hover:text-white hover:bg-white/5 transition-all w-full cursor-pointer"
         >
-          <div className="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container font-bold text-xs border-2 border-primary-fixed">{currentUser?.email?.substring(0, 2).toUpperCase() ?? "U"}</div>
+          <div className="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container font-bold text-xs border-2 border-primary-fixed">{user?.avatarInitials || user?.email?.substring(0, 2).toUpperCase() || "U"}</div>
           <div className="flex-1 text-left">
-            <p className="text-xs font-semibold text-white/80 truncate">{currentUser?.email || "User"}</p>
+            <p className="text-xs font-semibold text-white/80 truncate">{user?.email || "User"}</p>
             <p className="text-[10px] text-white/40">Sign out</p>
           </div>
         </button>

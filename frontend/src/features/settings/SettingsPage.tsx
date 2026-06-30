@@ -1,11 +1,14 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Settings, Brain, Key, CreditCard, Building2, Loader2 } from "lucide-react";
+import { Settings, Brain, Key, CreditCard, Building2, Loader2, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/services/apiClient";
+import { useQuery } from "@tanstack/react-query";
+import api from "@/lib/api";
+import { motion } from "framer-motion";
 
 const schema = z.object({
   techVsSoftWeight: z.number().min(0).max(100),
@@ -19,6 +22,7 @@ type FormData = z.infer<typeof schema>;
 const tabs = [
   { id: "ai", label: "AI & Ranking", icon: Brain },
   { id: "workspace", label: "Workspace", icon: Building2 },
+  { id: "security", label: "Security & 2FA", icon: Shield },
   { id: "api", label: "API Access", icon: Key },
   { id: "billing", label: "Billing", icon: CreditCard },
 ];
@@ -41,6 +45,23 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("ai");
   const [saving, setSaving] = useState(false);
+
+  // 2FA Setup State
+  const [setupData, setSetupData] = useState<{ secret: string; provisioning_uri: string } | null>(null);
+  const [setupCode, setSetupCode] = useState("");
+  const [disableCode, setDisableCode] = useState("");
+  const [verifyingSetup, setVerifyingSetup] = useState(false);
+  const [disabling2fa, setDisabling2fa] = useState(false);
+  const [showDisableForm, setShowDisableForm] = useState(false);
+
+  // Fetch latest user profile (containing is_totp_enabled) from backend SQLite db
+  const { data: userProfile, refetch: refetchProfile } = useQuery({
+    queryKey: ["user-profile"],
+    queryFn: async () => {
+      const res = await api.get("/auth/me");
+      return res.data;
+    }
+  });
 
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -77,13 +98,61 @@ export default function SettingsPage() {
     }
   };
 
+  const handleSetup2fa = async () => {
+    try {
+      const res = await api.get("/auth/2fa/setup");
+      setSetupData(res.data);
+      toast.success("2FA initialization secret generated.");
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Failed to initialize 2FA.");
+    }
+  };
+
+  const handleVerifySetup = async () => {
+    if (setupCode.length !== 6) {
+      toast.warning("Please enter the 6-digit code.");
+      return;
+    }
+    setVerifyingSetup(true);
+    try {
+      await api.post("/auth/2fa/enable", { code: setupCode });
+      toast.success("Google Authenticator 2FA enabled successfully!");
+      setSetupData(null);
+      setSetupCode("");
+      refetchProfile();
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Verification failed. Check code.");
+    } finally {
+      setVerifyingSetup(false);
+    }
+  };
+
+  const handleDisable2fa = async () => {
+    if (disableCode.length !== 6) {
+      toast.warning("Please enter the 6-digit code.");
+      return;
+    }
+    setDisabling2fa(true);
+    try {
+      await api.post("/auth/2fa/disable", { code: disableCode });
+      toast.success("Google Authenticator 2FA disabled successfully.");
+      setShowDisableForm(false);
+      setDisableCode("");
+      refetchProfile();
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Failed to disable 2FA. Check code.");
+    } finally {
+      setDisabling2fa(false);
+    }
+  };
+
   return (
     <div className="px-6 py-6 pb-12 max-w-5xl mx-auto space-y-5">
       <div>
         <h1 className="text-3xl font-bold text-on-surface tracking-tight flex items-center gap-2">
           <Settings className="w-7 h-7 text-primary" /> Enterprise Settings
         </h1>
-        <p className="text-on-surface-variant mt-1">Configure AI parameters, integrations, and workspace preferences.</p>
+        <p className="text-on-surface-variant mt-1">Configure AI parameters, security policies, and workspace preferences.</p>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)}>
@@ -96,7 +165,7 @@ export default function SettingsPage() {
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "w-full text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-colors flex items-center gap-2",
+                  "w-full text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-colors flex items-center gap-2 cursor-pointer",
                   activeTab === tab.id
                     ? "bg-primary/10 text-primary font-bold"
                     : "text-on-surface-variant hover:bg-surface-container-lowest"
@@ -196,6 +265,167 @@ export default function SettingsPage() {
               </div>
             )}
 
+            {activeTab === "security" && (
+              <div className="glass-card rounded-2xl p-6 border border-outline-variant/50 space-y-6">
+                <div>
+                  <h2 className="font-bold text-on-surface flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-primary" /> Two-Factor Authentication (2FA)
+                  </h2>
+                  <p className="text-sm text-on-surface-variant mt-1">
+                    Secure your account by requiring a Google Authenticator verification code when you sign in.
+                  </p>
+                </div>
+
+                {userProfile?.is_totp_enabled ? (
+                  // 2FA is ENABLED
+                  <div className="space-y-4">
+                    <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-600 font-bold">✓</div>
+                      <div>
+                        <p className="font-bold text-emerald-600">Google Authenticator 2FA is Active</p>
+                        <p className="text-xs text-on-surface-variant">Your account is secured with Time-based One-Time Passwords.</p>
+                      </div>
+                    </div>
+
+                    {showDisableForm ? (
+                      <div className="border border-outline-variant/50 rounded-xl p-4 bg-surface-container-low space-y-4 max-w-sm">
+                        <div>
+                          <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">
+                            Enter Code to Disable
+                          </label>
+                          <input
+                            type="text"
+                            maxLength={6}
+                            placeholder="000000"
+                            value={disableCode}
+                            onChange={(e) => setDisableCode(e.target.value.replace(/\D/g, ""))}
+                            className="w-full px-4 py-2.5 rounded-xl border border-outline-variant bg-white text-on-surface text-center font-mono font-bold text-lg focus:outline-none focus:ring-2 focus:ring-error/30 focus:border-error transition-all"
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowDisableForm(false);
+                              setDisableCode("");
+                            }}
+                            className="flex-1 border border-outline-variant text-on-surface font-semibold py-2 rounded-xl text-sm hover:bg-surface-container-high transition-all"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleDisable2fa}
+                            disabled={disabling2fa}
+                            className="flex-1 bg-red-600 text-white font-semibold py-2 rounded-xl text-sm hover:bg-red-700 transition-all flex items-center justify-center gap-1.5 disabled:opacity-70"
+                          >
+                            {disabling2fa ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Confirm Disable"}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setShowDisableForm(true)}
+                        className="bg-red-600/10 hover:bg-red-600/20 text-red-600 font-semibold px-4 py-2.5 rounded-xl text-sm border border-red-600/20 transition-all"
+                      >
+                        Disable 2FA
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  // 2FA is DISABLED
+                  <div className="space-y-6">
+                    <div className="bg-surface-container-lowest border border-outline-variant/50 rounded-xl p-4 flex justify-between items-center">
+                      <div>
+                        <p className="font-bold text-sm text-on-surface mb-1">Google Authenticator (TOTP)</p>
+                        <p className="text-xs text-on-surface-variant">Setup 2FA using Google Authenticator, Microsoft Authenticator, or Authy.</p>
+                      </div>
+                      {!setupData && (
+                        <button
+                          type="button"
+                          onClick={handleSetup2fa}
+                          className="bg-primary text-white font-bold px-4 py-2 rounded-xl text-sm hover:bg-primary-container transition-all"
+                        >
+                          Enable 2FA
+                        </button>
+                      )}
+                    </div>
+
+                    {setupData && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="border border-outline-variant/50 rounded-2xl p-6 bg-surface-container-low space-y-6"
+                      >
+                        <div className="flex flex-col md:flex-row gap-6 items-center">
+                          {/* QR Code */}
+                          <div className="w-48 h-48 bg-white border border-outline-variant/50 rounded-xl flex items-center justify-center p-2 shadow-sm">
+                            <img
+                              src={`https://chart.googleapis.com/chart?chs=180x180&chld=M|0&cht=qr&chl=${encodeURIComponent(setupData.provisioning_uri)}`}
+                              alt="Scan with Authenticator App"
+                              className="w-full h-full"
+                            />
+                          </div>
+
+                          {/* Instructions */}
+                          <div className="flex-1 space-y-3">
+                            <h3 className="font-bold text-on-surface">Setup Instructions</h3>
+                            <ol className="list-decimal list-inside text-sm text-on-surface-variant space-y-2">
+                              <li>Scan the QR code on the left with your Authenticator app.</li>
+                              <li>If you cannot scan the QR code, manually enter this key:
+                                <code className="block mt-1 p-2 bg-surface-container rounded font-mono text-xs font-bold text-primary select-all">
+                                  {setupData.secret}
+                                </code>
+                              </li>
+                              <li>Enter the 6-digit verification code from the app below.</li>
+                            </ol>
+                          </div>
+                        </div>
+
+                        <div className="border-t border-outline-variant/30 pt-6 max-w-sm">
+                          <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">
+                            6-Digit Verification Code
+                          </label>
+                          <div className="flex gap-3">
+                            <input
+                              type="text"
+                              maxLength={6}
+                              placeholder="000000"
+                              value={setupCode}
+                              onChange={(e) => setSetupCode(e.target.value.replace(/\D/g, ""))}
+                              className="flex-1 px-4 py-2.5 rounded-xl border border-outline-variant bg-white text-on-surface text-center font-mono font-bold text-lg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleVerifySetup}
+                              disabled={verifyingSetup}
+                              className="bg-primary text-white font-bold px-6 py-2.5 rounded-xl text-sm shadow hover:bg-primary-container transition-all flex items-center gap-1.5 disabled:opacity-70"
+                            >
+                              {verifyingSetup ? <Loader2 className="w-4 h-4 animate-spin" /> : "Verify & Enable"}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end pt-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSetupData(null);
+                              setSetupCode("");
+                            }}
+                            className="text-xs text-on-surface-variant hover:text-on-surface underline font-medium"
+                          >
+                            Cancel Setup
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {activeTab === "api" && (
               <div className="glass-card rounded-2xl p-6 border border-outline-variant/50 space-y-4">
                 <h2 className="font-bold text-on-surface flex items-center gap-2"><Key className="w-4 h-4 text-primary" /> API Access</h2>
@@ -226,13 +456,15 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {/* Save Button */}
-            <div className="flex justify-end gap-3">
-              <button type="button" className="border border-outline-variant bg-surface text-on-surface px-6 py-2.5 rounded-xl font-bold hover:bg-surface-container-low transition-all">Cancel</button>
-              <button type="submit" disabled={saving} className="bg-primary text-white px-6 py-2.5 rounded-xl font-bold shadow hover:bg-primary-container transition-all flex items-center gap-2 disabled:opacity-70">
-                {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : "Save Changes"}
-              </button>
-            </div>
+            {/* Save Button (hidden or disabled if viewing security tab to prevent confusion) */}
+            {activeTab !== "security" && (
+              <div className="flex justify-end gap-3">
+                <button type="button" className="border border-outline-variant bg-surface text-on-surface px-6 py-2.5 rounded-xl font-bold hover:bg-surface-container-low transition-all">Cancel</button>
+                <button type="submit" disabled={saving} className="bg-primary text-white px-6 py-2.5 rounded-xl font-bold shadow hover:bg-primary-container transition-all flex items-center gap-2 disabled:opacity-70">
+                  {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : "Save Changes"}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </form>

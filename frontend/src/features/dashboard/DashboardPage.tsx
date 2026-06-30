@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { useEffect } from "react";
 import { dashboardService } from "@/services";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuthStore } from "@/store";
 import { cn } from "@/lib/utils";
 import type { PriorityInsight } from "@/types";
 
@@ -46,10 +46,10 @@ const urgencyColor: Record<PriorityInsight["urgency"], string> = {
 };
 
 export default function DashboardPage() {
-  const { currentUser } = useAuth();
+  const user = useAuthStore((state) => state.user);
   const stats = useQuery({ queryKey: ["dashboard-stats"], queryFn: dashboardService.getStats });
   const insights = useQuery({ queryKey: ["dashboard-insights"], queryFn: dashboardService.getPriorityInsights });
-  const interviews = useQuery({ queryKey: ["dashboard-interviews"], queryFn: dashboardService.getInterviews });
+  const interviews = useQuery({ queryKey: ["dashboard-interviews"], queryFn: () => dashboardService.getInterviews() }); // fixed call
   const activity = useQuery({ queryKey: ["dashboard-activity"], queryFn: dashboardService.getAIActivity });
 
   useEffect(() => {
@@ -60,8 +60,8 @@ export default function DashboardPage() {
   // Dynamic greeting based on time of day
   const hour = new Date().getHours();
   const timeOfDay = hour < 12 ? "Morning" : hour < 17 ? "Afternoon" : "Evening";
-  const firstName = currentUser?.displayName?.split(" ")[0] ||
-    currentUser?.email?.split("@")[0] ||
+  const firstName = user?.name?.split(" ")[0] ||
+    user?.email?.split("@")[0] ||
     "there";
 
   return (

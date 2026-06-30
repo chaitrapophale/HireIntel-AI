@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from app.core.database import Base  # noqa: E402
 import app.models.candidate  # noqa: F401, E402
 import app.models.job  # noqa: F401, E402
+import app.models.user  # noqa: F401, E402
 
 config = context.config
 
