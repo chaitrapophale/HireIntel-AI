@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Briefcase, Users, Trophy, Star,
-  BarChart2, Settings, HelpCircle, Sparkles, Plus, Zap,
+  BarChart2, Settings, HelpCircle, Sparkles, Plus,
   Kanban, Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -42,8 +42,8 @@ export function Sidebar() {
       {/* Logo */}
       <div className="px-6 mb-8">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center">
-            <Zap className="w-5 h-5 text-white" />
+          <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center shadow">
+            <img src="/logo.svg" alt="HireIntel AI" className="w-7 h-7" />
           </div>
           <div>
             <h1 className="text-[20px] font-black text-white leading-tight tracking-tight">HireIntel AI</h1>

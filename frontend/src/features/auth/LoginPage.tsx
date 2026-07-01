@@ -2,7 +2,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useNavigate } from "react-router-dom";
-import { Zap, Eye, EyeOff, Shield, CheckCircle, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Shield, CheckCircle, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -184,7 +184,7 @@ export default function LoginPage() {
         >
           <div className="flex items-center gap-3 mb-6">
             <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-              <Zap className="w-6 h-6 text-primary" />
+              <img src="/logo.svg" alt="HireIntel AI" className="w-8 h-8" />
             </div>
             <h1 className="text-4xl font-black text-white tracking-tight">HireIntel AI</h1>
           </div>
@@ -241,9 +241,8 @@ export default function LoginPage() {
           transition={{ duration: 0.5 }}
           className="w-full max-w-[420px]"
         >
-          {/* Mobile Logo */}
           <div className="lg:hidden flex items-center gap-2 mb-8 justify-center">
-            <Zap className="w-6 h-6 text-primary" />
+            <img src="/logo.svg" alt="HireIntel AI" className="w-7 h-7" />
             <span className="text-2xl font-black text-primary">HireIntel AI</span>
           </div>
 
