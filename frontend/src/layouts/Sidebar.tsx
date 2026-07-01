@@ -28,7 +28,7 @@ export function Sidebar() {
 
   const handleLogout = async () => {
     try {
-      await firebaseLogout().catch(() => {});
+      await firebaseLogout().catch(() => { });
       storeLogout();
       toast.success("Signed out successfully");
       navigate("/login");
@@ -43,7 +43,7 @@ export function Sidebar() {
       <div className="px-6 mb-8">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center shadow">
-            <img src="/logo.svg" alt="HireIntel AI" className="w-7 h-7" />
+            <img src="/logo.png" alt="HireIntel AI" className="w-7 h-7 object-contain" />
           </div>
           <div>
             <h1 className="text-[20px] font-black text-white leading-tight tracking-tight">HireIntel AI</h1>
@@ -82,14 +82,14 @@ export function Sidebar() {
         </button>
 
         <div className="border-t border-white/10 pt-3 space-y-0.5">
-          <button 
+          <button
             onClick={() => toast.info("Support center coming soon!")}
             className="w-full flex items-center gap-3 px-3 py-2 text-white/50 hover:text-white transition-colors text-xs"
           >
             <HelpCircle className="w-4 h-4" />
             Support
           </button>
-          <button 
+          <button
             onClick={() => toast.info("No new updates this week.")}
             className="w-full flex items-center gap-3 px-3 py-2 text-white/50 hover:text-white transition-colors text-xs"
           >

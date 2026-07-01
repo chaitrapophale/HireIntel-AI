@@ -1,10 +1,3 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
-  <!-- H letterform in dark navy -->
-  <rect x="12" y="12" width="16" height="76" rx="2" fill="#15157d"/>
-  <rect x="72" y="12" width="16" height="76" rx="2" fill="#15157d"/>
-  <rect x="12" y="44" width="76" height="14" rx="2" fill="#15157d"/>
-  <!-- Upward arrow sweep in electric blue -->
-  <path d="M22 78 Q38 60 55 50 Q68 42 82 18" stroke="#006ff0" stroke-width="9" stroke-linecap="round" fill="none"/>
-  <!-- Arrow head -->
-  <polygon points="82,18 68,20 76,32" fill="#006ff0"/>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 100 100" width="100" height="100">
+  <image href="/logo.png" x="0" y="0" width="100" height="100"/>
 </svg>

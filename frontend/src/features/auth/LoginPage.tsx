@@ -184,7 +184,7 @@ export default function LoginPage() {
         >
           <div className="flex items-center gap-3 mb-6">
             <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-              <img src="/logo.svg" alt="HireIntel AI" className="w-8 h-8" />
+              <img src="/logo.png" alt="HireIntel AI" className="w-8 h-8 object-contain" />
             </div>
             <h1 className="text-4xl font-black text-white tracking-tight">HireIntel AI</h1>
           </div>
@@ -242,7 +242,7 @@ export default function LoginPage() {
           className="w-full max-w-[420px]"
         >
           <div className="lg:hidden flex items-center gap-2 mb-8 justify-center">
-            <img src="/logo.svg" alt="HireIntel AI" className="w-7 h-7" />
+            <img src="/logo.png" alt="HireIntel AI" className="w-7 h-7 object-contain" />
             <span className="text-2xl font-black text-primary">HireIntel AI</span>
           </div>
 
