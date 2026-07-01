@@ -7,10 +7,14 @@
 import axios from "axios";
 import { auth } from "@/lib/firebase";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+// VITE_API_URL is either a full base like "http://localhost:8000"
+// OR the pre-built production value "/api/v1" (set in Dockerfile).
+// We only append /api/v1 when the URL doesn't already end with it.
+const _apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const BASE_URL = _apiUrl.endsWith("/api/v1") ? _apiUrl : `${_apiUrl}/api/v1`;
 
 export const apiClient = axios.create({
-  baseURL: `${BASE_URL}/api/v1`,
+  baseURL: BASE_URL,
   headers: { "Content-Type": "application/json" },
 });
 
