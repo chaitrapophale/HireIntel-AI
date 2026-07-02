@@ -6,13 +6,13 @@ import { getFirestore, type Firestore } from "firebase/firestore";
 // They are safe to commit and are visible to any user of the app anyway.
 // See: https://firebase.google.com/docs/projects/api-keys
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? "AIzaSyDky60VLsL_uM42-LVHHdTOgs6Iz-a5MKw",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? "hireintel-ai-aa784.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ?? "hireintel-ai-aa784",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ?? "hireintel-ai-aa784.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? "1017888528923",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID ?? "1:1017888528923:web:b8539edd536ef6127e76be",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID ?? "G-6V9MJD4HZL",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? "AIzaSyC_XXWAXxbZ2KgsofqlnVqW3lYAaCBC8Rw",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? "hireintel-ai-4d2a3.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ?? "hireintel-ai-4d2a3",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ?? "hireintel-ai-4d2a3.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? "730266733727",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID ?? "1:730266733727:web:036adec95af8c22ad266aa",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID ?? "G-EX25010GY0",
 };
 
 // Whether Firebase initialized successfully. Exported so AuthContext can skip
