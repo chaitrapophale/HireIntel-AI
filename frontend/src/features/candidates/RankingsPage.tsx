@@ -331,7 +331,7 @@ export default function RankingsPage() {
     {
       id: "roleFit",
       header: "Role Fit",
-      accessorFn: (row) => row.fitBreakdown.roleFit,
+      accessorFn: (row) => row.fitBreakdown?.roleFit || row.aiScore || 0,
       cell: ({ getValue }) => <FitBar value={getValue() as number} />,
     },
     {

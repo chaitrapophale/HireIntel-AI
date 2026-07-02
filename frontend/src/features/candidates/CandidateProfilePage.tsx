@@ -49,11 +49,11 @@ export default function CandidateProfilePage() {
   }
 
   const radarData = [
-    { axis: "Tech Skills", value: candidate.fitBreakdown.techSkills },
-    { axis: "Experience", value: candidate.fitBreakdown.experience },
-    { axis: "Culture", value: candidate.fitBreakdown.cultureSoftSkills },
-    { axis: "Impact", value: candidate.fitBreakdown.impact },
-    { axis: "Role Fit", value: candidate.fitBreakdown.roleFit },
+    { axis: "Tech Skills", value: candidate.fitBreakdown?.techSkills || 0 },
+    { axis: "Experience", value: candidate.fitBreakdown?.experience || 0 },
+    { axis: "Culture", value: candidate.fitBreakdown?.cultureSoftSkills || 0 },
+    { axis: "Impact", value: candidate.fitBreakdown?.impact || 0 },
+    { axis: "Role Fit", value: candidate.fitBreakdown?.roleFit || candidate.aiScore || 0 },
   ];
 
   const skillLevelColor = {
@@ -223,7 +223,7 @@ export default function CandidateProfilePage() {
               </ResponsiveContainer>
             </div>
             <div className="w-full space-y-2 mt-2">
-              {(Object.entries(candidate.fitBreakdown) as [keyof FitBreakdown, number][]).map(([k, v]) => (
+              {(Object.entries(candidate.fitBreakdown || {}) as [keyof FitBreakdown, number][]).map(([k, v]) => (
                 <div key={k}>
                   <div className="flex justify-between text-xs mb-0.5">
                     <span className="font-medium capitalize">{k.replace(/([A-Z])/g, " $1")}</span>

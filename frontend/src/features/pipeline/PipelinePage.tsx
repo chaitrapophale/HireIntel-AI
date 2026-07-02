@@ -84,10 +84,10 @@ function CandidateCard({
       <div className="mb-3">
         <div className="flex justify-between text-[9px] mb-0.5">
           <span className="text-on-surface-variant">Role Fit</span>
-          <span className="text-primary font-bold">{candidate.fitBreakdown.roleFit}%</span>
+          <span className="text-primary font-bold">{candidate.fitBreakdown?.roleFit || candidate.aiScore || 0}%</span>
         </div>
         <div className="w-full bg-surface-container-highest rounded-full h-1">
-          <div className="h-1 rounded-full bg-primary" style={{ width: `${candidate.fitBreakdown.roleFit}%` }} />
+          <div className="h-1 rounded-full bg-primary" style={{ width: `${candidate.fitBreakdown?.roleFit || candidate.aiScore || 0}%` }} />
         </div>
       </div>
 
