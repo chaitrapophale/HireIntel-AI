@@ -4,12 +4,15 @@ import logging
 import os
 import time
 import urllib.parse
+import csv
+import io
 from pydantic import BaseModel, Field
 from typing import List, Optional, Annotated
 
 import httpx
 import fastapi
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, Request
+from fastapi.responses import StreamingResponse
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func
@@ -134,6 +137,48 @@ async def upload_dataset(file: UploadFile = File(...), db: Session = Depends(get
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
+@router.get("/export-hackathon-csv")
+def export_hackathon_csv(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    user_id = current_user.id
+    candidates = db.execute(select(CandidateModel).where(CandidateModel.user_id == user_id)).scalars().all()
+    
+    # Filter candidates with 0 score (honeypots/unhirable), though we already filter on upload.
+    valid_cands = [c for c in candidates if (c.overall_score or 0) > 0]
+    
+    # Sort descending by score, ascending by candidate_id for deterministic tie-breaking (same as rank.py)
+    valid_cands.sort(key=lambda x: (-(x.overall_score or 0), x.id))
+    
+    top_100 = valid_cands[:100]
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["candidate_id", "rank", "score", "reasoning"])
+    
+    for i, c in enumerate(top_100):
+        rank = i + 1
+        score = (c.overall_score or 0) / 100.0  # We stored it as *100, so scale it back for CSV
+        reasoning = c.why_stand_out[0] if getattr(c, "why_stand_out", None) and len(c.why_stand_out) > 0 else ""
+        writer.writerow([c.id, rank, round(score, 4), reasoning])
+        
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=team_antigravity.csv"}
+    )
+
+@router.delete("/wipe-all")
+def wipe_all_candidates(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    user_id = current_user.id
+    try:
+        db.execute(CandidateModel.__table__.delete().where(CandidateModel.user_id == user_id))
+        db.commit()
+        # Note: Vector DB doesn't easily support delete_by_metadata (user_id) yet. 
+        # But this clears the primary UI DB.
+        return {"message": "All candidates deleted successfully."}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to wipe candidates: {str(e)}")
 
 _VALID_SKILL_LEVELS = {"expert", "advanced", "intermediate"}
 

@@ -5,7 +5,7 @@ import {
   getFilteredRowModel, flexRender, type ColumnDef, type SortingState,
 } from "@tanstack/react-table";
 import { useState, useMemo } from "react";
-import { ChevronUp, ChevronDown, ArrowRight, Trophy, Upload, Sparkles, Loader2, X, FileText, CheckCircle2, AlertCircle, Download } from "lucide-react";
+import { ChevronUp, ChevronDown, ArrowRight, Trophy, Upload, Sparkles, Loader2, X, FileText, CheckCircle2, AlertCircle, Download, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useDropzone } from "react-dropzone";
 import { candidateService, jobService } from "@/services";
@@ -249,40 +249,33 @@ export default function RankingsPage() {
 
   const data = localRankedData || serverCandidates;
 
-  const handleExportDataset = () => {
-    if (data.length === 0) {
-      toast.warning("No candidate data to export.");
-      return;
+  const handleExportDataset = async () => {
+    try {
+      const blob = await candidateService.exportHackathonCsv();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", "team_antigravity.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      toast.success("Dataset exported successfully!");
+    } catch (err) {
+      toast.error("Failed to export dataset");
     }
+  };
 
-    const headers = ["ID", "Full Name", "Job Title", "Location", "AI Score", "Status", "Skills", "Years of Experience"];
-    const csvRows = [
-      headers.join(","),
-      ...data.map((c) => {
-        const skillsStr = (c.skills || []).map((s) => s.name).join("; ");
-        const years = c.experience ? c.experience.length : 0;
-        return [
-          `"${c.id}"`,
-          `"${c.name}"`,
-          `"${c.jobTitle}"`,
-          `"${c.location || "Remote"}"`,
-          c.aiScore,
-          `"${c.status}"`,
-          `"${skillsStr}"`,
-          years
-        ].join(",");
-      })
-    ];
-
-    const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `hireintel_candidates_export_${new Date().toISOString().split("T")[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success("Dataset exported successfully!");
+  const handleWipeData = async () => {
+    if (!confirm("Are you sure you want to wipe all candidate data? This cannot be undone.")) return;
+    try {
+      await candidateService.wipeAllCandidates();
+      queryClient.invalidateQueries({ queryKey: ["candidates"] });
+      setLocalRankedData(null);
+      toast.success("All data wiped successfully");
+    } catch (err) {
+      toast.error("Failed to wipe data");
+    }
   };
 
   const handleRankCandidates = async () => {
@@ -442,6 +435,14 @@ export default function RankingsPage() {
           >
             <Download className="w-4 h-4" />
             Export Dataset
+          </button>
+
+          <button
+            onClick={handleWipeData}
+            className="border border-error/20 bg-error/5 hover:bg-error/10 text-error px-4 py-2 rounded-xl text-sm font-semibold transition-all flex items-center gap-1.5"
+          >
+            <Trash2 className="w-4 h-4" />
+            Wipe Data
           </button>
 
           <input

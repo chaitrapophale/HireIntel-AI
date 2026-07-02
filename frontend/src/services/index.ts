@@ -136,6 +136,16 @@ export const candidateService = {
     const res = await api.delete(`/candidates/${candidateId}`);
     return res.data;
   },
+
+  wipeAllCandidates: async () => {
+    const res = await api.delete("/candidates/wipe-all");
+    return res.data;
+  },
+
+  exportHackathonCsv: async () => {
+    const res = await api.get("/candidates/export-hackathon-csv", { responseType: "blob" });
+    return res.data;
+  },
 };
 
 // ══════════════════════════════════════════════════════════════
