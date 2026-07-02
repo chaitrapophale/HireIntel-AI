@@ -44,24 +44,13 @@ export const dashboardService = {
     return res.data;
   },
   getAIActivity: async (): Promise<AIActivity[]> => {
-    return [
-      { id: "1", type: "scanning", message: "Scanning for Senior Frontend roles...", time: "Just now" },
-      { id: "2", type: "ranking", message: "Ranked new candidates via NVIDIA NIM.", time: "1 hour ago" },
-    ];
+    return [];
   },
   getPriorityInsights: async (): Promise<PriorityInsight[]> => {
-    return [
-      {
-        id: "1", type: "candidate", title: "Top Match Found", subtitle: "Based on NVIDIA LLM Reranking",
-        description: "A recent upload has a 95% match with your open requisition.",
-        score: 95, urgency: "high", actions: ["Review Profile", "Reach Out"],
-      },
-    ];
+    return [];
   },
   getInterviews: async (): Promise<ScheduledInterview[]> => {
-    return [
-      { id: "1", candidateName: "Sarah Jenkins", role: "Sr. Frontend Engineer", time: "10:00", period: "AM", hasAIPrep: true }
-    ];
+    return [];
   },
 };
 

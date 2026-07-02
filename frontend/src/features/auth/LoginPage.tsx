@@ -134,6 +134,7 @@ export default function LoginPage() {
 
     try {
       const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
       const cred = await signInWithPopup(auth, provider);
       const idToken = await cred.user.getIdToken();
 

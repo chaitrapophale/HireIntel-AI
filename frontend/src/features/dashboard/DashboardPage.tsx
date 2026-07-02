@@ -49,8 +49,12 @@ export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
   const stats = useQuery({ queryKey: ["dashboard-stats"], queryFn: dashboardService.getStats });
   const insights = useQuery({ queryKey: ["dashboard-insights"], queryFn: dashboardService.getPriorityInsights });
-  const interviews = useQuery({ queryKey: ["dashboard-interviews"], queryFn: () => dashboardService.getInterviews() }); // fixed call
+  const interviews = useQuery({ queryKey: ["dashboard-interviews"], queryFn: dashboardService.getInterviews });
   const activity = useQuery({ queryKey: ["dashboard-activity"], queryFn: dashboardService.getAIActivity });
+  
+  // Real data for Active Requisitions
+  const jobsQuery = useQuery({ queryKey: ["jobs"], queryFn: jobService.getJobs });
+  const candsQuery = useQuery({ queryKey: ["candidates"], queryFn: candidateService.getCandidates });
 
   useEffect(() => {
     document.title = "Dashboard — HireIntel AI";
@@ -72,7 +76,7 @@ export default function DashboardPage() {
           <div>
             <h1 className="text-3xl font-bold text-on-surface tracking-tight">{timeOfDay}, {firstName} 👋</h1>
             <p className="text-on-surface-variant mt-1">
-              The AI analyzed <span className="font-bold text-primary">342</span> new candidates overnight.
+              Welcome back to your workspace. You have <span className="font-bold text-primary">{candsQuery.data?.length || 0}</span> candidates tracked.
             </p>
           </div>
           <div className="flex gap-3">
@@ -167,25 +171,27 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/20">
-                  {[
-                    { role: "Senior Frontend Engineer", dept: "Engineering • SF", pipeline: [42, 12, 4], score: 96, color: "bg-primary" },
-                    { role: "Product Marketing Manager", dept: "Marketing • Remote", pipeline: [85, 5, 1], score: 88, color: "bg-secondary" },
-                    { role: "Lead UI/UX Designer", dept: "Design • New York", pipeline: [18, 8, 4], score: 92, color: "bg-tertiary-container" },
-                  ].map((job) => (
-                    <tr key={job.role} className="hover:bg-surface-container-low transition-colors cursor-pointer group">
+                  {jobsQuery.data?.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="px-5 py-8 text-center text-on-surface-variant">
+                        No active requisitions found. Create one to get started.
+                      </td>
+                    </tr>
+                  ) : jobsQuery.data?.map((job) => (
+                    <tr key={job.id} className="hover:bg-surface-container-low transition-colors cursor-pointer group">
                       <td className="px-5 py-4">
-                        <div className="font-bold text-on-surface">{job.role}</div>
-                        <div className="text-[11px] text-on-surface-variant">{job.dept}</div>
+                        <div className="font-bold text-on-surface">{job.title}</div>
+                        <div className="text-[11px] text-on-surface-variant">{job.department || "General"} • {job.location || "Remote"}</div>
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex gap-0.5 h-1.5 w-28 rounded-full overflow-hidden bg-surface-container-highest">
-                          <div className={cn("h-full rounded-full", job.color)} style={{ width: `${(job.pipeline[0] / 100) * 100}%` }} />
+                          <div className="h-full rounded-full bg-primary" style={{ width: `0%` }} />
                         </div>
-                        <div className="text-[10px] text-on-surface-variant mt-1">{job.pipeline[0]} Sourced • {job.pipeline[1]} Screened</div>
+                        <div className="text-[10px] text-on-surface-variant mt-1">0 Sourced • 0 Screened</div>
                       </td>
                       <td className="px-5 py-4 text-center">
-                        <div className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-primary text-white font-bold text-xs ring-4 ring-primary/20">
-                          {job.score}%
+                        <div className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-surface-container-high text-on-surface-variant font-bold text-xs">
+                          —
                         </div>
                       </td>
                     </tr>
