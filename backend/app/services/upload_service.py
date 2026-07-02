@@ -453,166 +453,147 @@ def map_row_to_candidate_data(row: dict) -> dict:
     }
 
 async def process_dataset_upload(file: UploadFile, db: Session, user_id: str):
-    content = await file.read()
     filename = file.filename.lower()
     
+    imported = 0
+    failed = 0
+    duplicates = 0
+    total = 0
+    
+    candidates_to_embed = []
+    preview_lines = []
+    
     try:
-        # 1. Read file
-        if filename.endswith(".jsonl") or filename.endswith(".ndjson"):
-            # JSON Lines format: one JSON object per line
-            text = content.decode("utf-8")
-            records = []
-            for line in text.splitlines():
-                line = line.strip()
-                if line:
-                    try:
-                        records.append(json.loads(line))
-                    except json.JSONDecodeError as e:
-                        logger.warning(f"Skipping malformed JSONL line: {e}")
-        elif filename.endswith(".json"):
-            try:
-                # Try raw json loads first to handle nested formats
-                raw_data = json.loads(content.decode("utf-8"))
-                if isinstance(raw_data, list):
-                    records = raw_data
-                elif isinstance(raw_data, dict) and "candidates" in raw_data:
-                    records = raw_data["candidates"]
-                else:
-                    records = [raw_data]
-            except Exception:
-                df = pd.read_json(io.BytesIO(content))
-                records = df.to_dict(orient="records")
-        elif filename.endswith(".csv"):
-            df = pd.read_csv(io.BytesIO(content))
-            records = df.to_dict(orient="records")
-        elif filename.endswith(".xlsx") or filename.endswith(".xls"):
-            df = pd.read_excel(io.BytesIO(content))
-            records = df.to_dict(orient="records")
-        else:
-            raise ValueError(f"Unsupported file format. Supported: .jsonl, .json, .csv, .xlsx, .xls. File: {filename}")
-            
-        imported = 0
-        failed = 0
-        duplicates = 0
-        
-        candidates_to_embed = []
-        
-        for row in records:
-            # Drop honeypots immediately
+        def process_row(row):
+            nonlocal imported, failed, duplicates, total
+            total += 1
             if is_honeypot(row):
                 failed += 1
-                continue
-                
-            # Clean and map
+                return
+            
             try:
                 mapped = map_row_to_candidate_data(row)
                 
-                # If score is exactly 0.0 from heuristic, they are unhirable
                 if mapped.get("_hackathon_raw_score", 1.0) == 0.0:
                     failed += 1
-                    continue
+                    return
                 
-                # 2. Validate schema using Pydantic (excluding our temporary keys)
                 validation_mapped = {k: v for k, v in mapped.items() if not k.startswith("_")}
                 CandidateUploadSchema(**validation_mapped)
+                
+                email = mapped.get("email")
+                if email and db.query(CandidateModel).filter(CandidateModel.email == email).first():
+                    duplicates += 1
+                    return
+                    
+                id_val = mapped.get("id")
+                if id_val and db.query(CandidateModel).filter(CandidateModel.id == id_val).first():
+                    duplicates += 1
+                    return
+                
+                reasoning_str = mapped.get("_hackathon_reasoning", "")
+                
+                cand = CandidateModel(
+                    id=mapped["id"],
+                    user_id=user_id,
+                    full_name=mapped["full_name"],
+                    email=mapped["email"],
+                    phone=mapped["phone"],
+                    skills=mapped["skills"],
+                    experience=mapped["experience"],
+                    education=mapped["education"],
+                    projects=mapped["projects"],
+                    resume_text=mapped["resume_text"],
+                    github=mapped["github"],
+                    linkedin=mapped["linkedin"],
+                    portfolio=mapped["portfolio"],
+                    overall_score=mapped["overall_score"],
+                    skill_score=mapped["skill_score"],
+                    experience_score=mapped["experience_score"],
+                    behavioral_score=mapped["behavioral_score"],
+                    is_hidden_gem=mapped["is_hidden_gem"],
+                    status=mapped["status"],
+                    why_stand_out=[reasoning_str] if reasoning_str else []
+                )
+                db.add(cand)
+                imported += 1
+                
+                profile = row.get("profile") or {}
+                current_title = profile.get("current_title")
+                if not current_title and mapped["experience"]:
+                    current_title = mapped["experience"][0]["title"]
+                years_of_experience = profile.get("years_of_experience")
+                if years_of_experience is None:
+                    years_of_experience = 0.0
+                location = profile.get("location") or clean_nan(row.get("location")) or "Remote"
+                summary = profile.get("summary") or mapped["resume_text"] or ""
+                
+                candidates_to_embed.append({
+                    "id": cand.id,
+                    "current_title": current_title or "Unknown Title",
+                    "summary": summary,
+                    "skills": mapped["skills"],
+                    "experience": mapped["experience"],
+                    "years_of_experience": float(years_of_experience),
+                    "location": location
+                })
+                
+                if len(preview_lines) < 5 and mapped.get("full_name"):
+                    skills_str = ", ".join([s["name"] for s in (mapped.get("skills") or [])[:5]]) or "N/A"
+                    exp_items = mapped.get("experience") or []
+                    latest_role = exp_items[0]["title"] if exp_items else "N/A"
+                    score = mapped.get("overall_score", 0)
+                    line = f"• {mapped['full_name']} | {latest_role} | Score: {score:.0f} | Skills: {skills_str}"
+                    preview_lines.append(line)
+                    
+                if imported % 500 == 0:
+                    db.commit()
+                    if candidates_to_embed:
+                        add_candidates_to_vector_db(candidates_to_embed)
+                        candidates_to_embed.clear()
             except Exception as e:
                 logger.warning(f"Validation failed for row {row.get('name', 'Unknown')}: {e}")
                 failed += 1
-                continue
+
+        if filename.endswith(".jsonl") or filename.endswith(".ndjson"):
+            for line in file.file:
+                line = line.strip()
+                if line:
+                    try:
+                        row = json.loads(line.decode("utf-8"))
+                        process_row(row)
+                    except Exception as e:
+                        logger.warning(f"Skipping malformed JSONL line: {e}")
+                        failed += 1
+        else:
+            content = await file.read()
+            if filename.endswith(".json"):
+                try:
+                    raw_data = json.loads(content.decode("utf-8"))
+                    if isinstance(raw_data, list):
+                        records = raw_data
+                    elif isinstance(raw_data, dict) and "candidates" in raw_data:
+                        records = raw_data["candidates"]
+                    else:
+                        records = [raw_data]
+                except Exception:
+                    df = pd.read_json(io.BytesIO(content))
+                    records = df.to_dict(orient="records")
+            elif filename.endswith(".csv"):
+                df = pd.read_csv(io.BytesIO(content))
+                records = df.to_dict(orient="records")
+            elif filename.endswith(".xlsx") or filename.endswith(".xls"):
+                df = pd.read_excel(io.BytesIO(content))
+                records = df.to_dict(orient="records")
+            else:
+                raise ValueError(f"Unsupported file format. Supported: .jsonl, .json, .csv, .xlsx, .xls. File: {filename}")
                 
-            # Check duplicate email
-            email = mapped["email"]
-            if email:
-                existing = db.query(CandidateModel).filter(CandidateModel.email == email).first()
-                if existing:
-                    duplicates += 1
-                    continue
-            
-            # Check duplicate ID
-            id_val = mapped["id"]
-            if id_val:
-                existing = db.query(CandidateModel).filter(CandidateModel.id == id_val).first()
-                if existing:
-                    duplicates += 1
-                    continue
-            
-            # Use reasoning as why_stand_out since we don't have a separate field in mapped
-            reasoning_str = mapped.get("_hackathon_reasoning", "")
-            
-            cand = CandidateModel(
-                id=mapped["id"],
-                user_id=user_id,
-                full_name=mapped["full_name"],
-                email=mapped["email"],
-                phone=mapped["phone"],
-                skills=mapped["skills"],
-                experience=mapped["experience"],
-                education=mapped["education"],
-                projects=mapped["projects"],
-                resume_text=mapped["resume_text"],
-                github=mapped["github"],
-                linkedin=mapped["linkedin"],
-                portfolio=mapped["portfolio"],
-                overall_score=mapped["overall_score"],
-                skill_score=mapped["skill_score"],
-                experience_score=mapped["experience_score"],
-                behavioral_score=mapped["behavioral_score"],
-                is_hidden_gem=mapped["is_hidden_gem"],
-                status=mapped["status"],
-                why_stand_out=[reasoning_str] if reasoning_str else []
-            )
-            db.add(cand)
-            imported += 1
-            
-            # Extract attributes for embedding
-            profile = row.get("profile") or {}
-            current_title = profile.get("current_title")
-            if not current_title and mapped["experience"]:
-                current_title = mapped["experience"][0]["title"]
-            years_of_experience = profile.get("years_of_experience")
-            if years_of_experience is None:
-                years_of_experience = 0.0
-            location = profile.get("location") or clean_nan(row.get("location")) or "Remote"
-            summary = profile.get("summary") or mapped["resume_text"] or ""
-            
-            candidates_to_embed.append({
-                "id": cand.id,
-                "current_title": current_title or "Unknown Title",
-                "summary": summary,
-                "skills": mapped["skills"],
-                "experience": mapped["experience"],
-                "years_of_experience": float(years_of_experience),
-                "location": location
-            })
-            
+            for row in records:
+                process_row(row)
+                
         db.commit()
-        
-        # 5. Generate embeddings & Store in ChromaDB
         if candidates_to_embed:
             add_candidates_to_vector_db(candidates_to_embed)
-
-        # 6. Build a plain-text preview of the first 5 successfully imported candidates
-        preview_lines = []
-        preview_count = 0
-        for row in records:
-            if preview_count >= 5:
-                break
-            try:
-                mapped = map_row_to_candidate_data(row)
-                if not mapped.get("full_name"):
-                    continue
-                skills_str = ", ".join([s["name"] for s in (mapped.get("skills") or [])[:5]]) or "N/A"
-                exp_items = mapped.get("experience") or []
-                latest_role = exp_items[0]["title"] if exp_items else "N/A"
-                score = mapped.get("overall_score", 0)
-                line = (
-                    f"• {mapped['full_name']} | {latest_role} | "
-                    f"Score: {score:.0f} | Skills: {skills_str}"
-                )
-                preview_lines.append(line)
-                preview_count += 1
-            except Exception:
-                continue
 
         remaining = max(0, imported - 5)
         if remaining > 0:
@@ -620,7 +601,7 @@ async def process_dataset_upload(file: UploadFile, db: Session, user_id: str):
         preview_text = "\n".join(preview_lines) if preview_lines else "No preview available."
 
         return {
-            "total": len(records),
+            "total": total,
             "imported": imported,
             "failed": failed,
             "duplicates": duplicates,
