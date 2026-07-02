@@ -15,21 +15,27 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID ?? "G-6V9MJD4HZL",
 };
 
-// Wrap in try/catch so a bad API key never crashes the whole app.
-// The app will still work via the backend dev-fallback auth flow.
-let app: FirebaseApp | null = null;
-let auth: Auth;
-let db: Firestore;
+// Whether Firebase initialized successfully. Exported so AuthContext can skip
+// Firebase-specific calls (onAuthStateChanged, signOut) gracefully.
+export let firebaseReady = false;
+
+let _app: FirebaseApp | null = null;
+let _auth: Auth | null = null;
+let _db: Firestore | null = null;
 
 try {
-  app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  db = getFirestore(app);
+  _app = initializeApp(firebaseConfig);
+  _auth = getAuth(_app);
+  _db = getFirestore(_app);
+  firebaseReady = true;
 } catch (err) {
-  console.warn("Firebase failed to initialize — running in offline/fallback mode.", err);
-  // Provide stub objects so imports don't break
-  auth = {} as Auth;
-  db = {} as Firestore;
+  console.warn(
+    "Firebase failed to initialize — running in backend-only fallback mode.\n" +
+    "To fix: verify your API key is valid in the Firebase Console.",
+    err
+  );
 }
 
-export { auth, db };
+// Export nullable refs. Callers must guard with `if (auth)` or check `firebaseReady`.
+export const auth = _auth;
+export const db = _db;

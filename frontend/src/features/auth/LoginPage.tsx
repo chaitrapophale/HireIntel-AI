@@ -6,13 +6,13 @@ import { Eye, EyeOff, Shield, CheckCircle, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { auth } from "@/lib/firebase";
-import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
+import { auth, firebaseReady } from "@/lib/firebase";
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   sendPasswordResetEmail,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
 } from "firebase/auth";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store";
@@ -49,6 +49,10 @@ export default function LoginPage() {
       toast.warning("Enter your email address first, then click Forgot Password.");
       return;
     }
+    if (!firebaseReady || !auth) {
+      toast.error("Password reset is unavailable — Firebase is not configured.");
+      return;
+    }
     try {
       await sendPasswordResetEmail(auth, email);
       toast.success(`Password reset email sent to ${email}. Check your inbox.`);
@@ -69,16 +73,21 @@ export default function LoginPage() {
       let email = data.email;
       let name = data.email.split("@")[0];
 
-      try {
-        if (isSignUp) {
-          const cred = await createUserWithEmailAndPassword(auth, data.email, data.password);
-          idToken = await cred.user.getIdToken(true);
-        } else {
-          const cred = await signInWithEmailAndPassword(auth, data.email, data.password);
-          idToken = await cred.user.getIdToken(true);
+      if (firebaseReady && auth) {
+        try {
+          if (isSignUp) {
+            const cred = await createUserWithEmailAndPassword(auth, data.email, data.password);
+            idToken = await cred.user.getIdToken(true);
+          } else {
+            const cred = await signInWithEmailAndPassword(auth, data.email, data.password);
+            idToken = await cred.user.getIdToken(true);
+          }
+        } catch (fbError: any) {
+          console.warn("Firebase auth failed, using backend fallback:", fbError.code ?? fbError.message);
+          idToken = "dev_fallback";
         }
-      } catch (fbError: any) {
-        console.warn("Firebase authentication failed. Trying developer fallback on the backend...", fbError);
+      } else {
+        // Firebase not available — use backend JWT auth directly
         idToken = "dev_fallback";
       }
 
@@ -106,11 +115,28 @@ export default function LoginPage() {
   };
 
   const handleGoogleSignIn = async () => {
+    if (!firebaseReady || !auth) {
+      // Firebase unavailable — use backend dev-fallback directly
+      try {
+        const response = await api.post("/auth/login", {
+          id_token: "dev_fallback",
+          email: "sarah@globaltech.com",
+          name: "Sarah Jenkins",
+        });
+        useAuthStore.getState().login(response.data.access_token, response.data.user);
+        toast.success("Signed in successfully!");
+        navigate("/app/dashboard", { replace: true });
+      } catch (err: any) {
+        toast.error(err.response?.data?.detail || "Sign-in failed.");
+      }
+      return;
+    }
+
     try {
       const provider = new GoogleAuthProvider();
       const cred = await signInWithPopup(auth, provider);
       const idToken = await cred.user.getIdToken();
-      
+
       const response = await api.post("/auth/login", {
         id_token: idToken,
         email: cred.user.email,
@@ -129,19 +155,7 @@ export default function LoginPage() {
       }
     } catch (err: any) {
       if (err.code !== "auth/popup-closed-by-user") {
-        console.warn("Google sign-in Firebase call failed, trying fallback...", err);
-        try {
-          const response = await api.post("/auth/login", {
-            id_token: "dev_fallback",
-            email: "sarah@globaltech.com",
-            name: "Sarah Jenkins",
-          });
-          useAuthStore.getState().login(response.data.access_token, response.data.user);
-          toast.success("Signed in successfully (Developer Fallback)!");
-          navigate("/app/dashboard", { replace: true });
-        } catch (fallbackErr: any) {
-          toast.error(err.message || "Google sign-in failed.");
-        }
+        toast.error(err.response?.data?.detail || err.message || "Google sign-in failed.");
       }
     }
   };
