@@ -1,4 +1,5 @@
 import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -8,67 +9,86 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from app.api.routers import api_router
-from app.core.database import engine, Base, SessionLocal
+from app.core.database import Base, SessionLocal, engine
 from app.core.config import settings
 from app.core.logging import logger
-from sqlalchemy import select
+from sqlalchemy import select, text
 
-# Import models
+# Import models so Alembic / create_all knows about them
 from app.models.job import JobModel
 from app.models.candidate import CandidateModel
 from app.models.user import User
 
 # ---------------------------------------------------------------------------
-# Database — (Schema migrations managed exclusively via Alembic)
-# ---------------------------------------------------------------------------
-# Base.metadata.create_all(bind=engine)  # REMOVED: Rely on Alembic
-
-# Seed default jobs if database is empty
-db = SessionLocal()
-try:
-    if db.execute(select(JobModel)).first() is None:
-        logger.info("Seeding default jobs...")
-        jobs = [
-            JobModel(
-                title="Senior Frontend Engineer",
-                department="Engineering",
-                location="San Francisco, CA",
-                description="We are looking for a Senior Frontend Engineer with experience in React, TypeScript, and modern styling libraries to build stunning user interfaces.",
-                core_skills=["React", "TypeScript", "TailwindCSS", "CSS"],
-                soft_skills=["Communication", "Teamwork"],
-                status="open"
-            ),
-            JobModel(
-                title="AI Research Scientist",
-                department="AI Research",
-                location="Remote",
-                description="Join our AI research team to develop advanced agentic workflows, custom embeddings architectures, and deploy LLM applications.",
-                core_skills=["Python", "PyTorch", "Embeddings", "LLMs"],
-                soft_skills=["Research", "Critical Thinking"],
-                status="open"
-            ),
-            JobModel(
-                title="Product Manager",
-                department="Product",
-                location="New York, NY",
-                description="We are looking for a Product Manager to own the lifecycle of our recruitment platform, work closely with engineering, and design workflows.",
-                core_skills=["Agile", "Roadmapping", "Product Strategy"],
-                soft_skills=["Leadership", "Stakeholder Management"],
-                status="open"
-            )
-        ]
-        db.add_all(jobs)
-        db.commit()
-        logger.info("Default jobs seeded successfully.")
-except Exception as e:
-    logger.error(f"Failed to seed default jobs: {e}")
-finally:
-    db.close()
-
-# ---------------------------------------------------------------------------
 # Rate Limiter
 # ---------------------------------------------------------------------------
 limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
+
+
+def _run_startup_db() -> None:
+    """Run schema creation + seed inside a try/except so a DB error never
+    prevents the server from starting (which would cause Cloud Run to report
+    the container as unhealthy and return 500 on every request)."""
+    try:
+        # Ensure all tables exist (idempotent — safe to call on every start)
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database schema is up to date.")
+    except Exception as e:
+        logger.error(f"DB schema creation failed (may be fine if Alembic manages it): {e}")
+
+    db = SessionLocal()
+    try:
+        # Only seed if the jobs table exists and is empty
+        db.execute(text("SELECT 1 FROM jobs LIMIT 1"))  # probe — raises if table missing
+        if db.execute(select(JobModel)).first() is None:
+            logger.info("Seeding default jobs...")
+            jobs = [
+                JobModel(
+                    title="Senior Frontend Engineer",
+                    department="Engineering",
+                    location="San Francisco, CA",
+                    description="We are looking for a Senior Frontend Engineer with experience in React, TypeScript, and modern styling libraries to build stunning user interfaces.",
+                    core_skills=["React", "TypeScript", "TailwindCSS", "CSS"],
+                    soft_skills=["Communication", "Teamwork"],
+                    status="open",
+                ),
+                JobModel(
+                    title="AI Research Scientist",
+                    department="AI Research",
+                    location="Remote",
+                    description="Join our AI research team to develop advanced agentic workflows, custom embeddings architectures, and deploy LLM applications.",
+                    core_skills=["Python", "PyTorch", "Embeddings", "LLMs"],
+                    soft_skills=["Research", "Critical Thinking"],
+                    status="open",
+                ),
+                JobModel(
+                    title="Product Manager",
+                    department="Product",
+                    location="New York, NY",
+                    description="We are looking for a Product Manager to own the lifecycle of our recruitment platform, work closely with engineering, and design workflows.",
+                    core_skills=["Agile", "Roadmapping", "Product Strategy"],
+                    soft_skills=["Leadership", "Stakeholder Management"],
+                    status="open",
+                ),
+            ]
+            db.add_all(jobs)
+            db.commit()
+            logger.info("Default jobs seeded successfully.")
+    except Exception as e:
+        logger.warning(f"Seeding skipped (table may not exist yet or already seeded): {e}")
+    finally:
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# Lifespan — replaces @app.on_event("startup") (deprecated)
+# ---------------------------------------------------------------------------
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Run startup tasks before the server accepts requests."""
+    _run_startup_db()
+    yield
+
 
 # ---------------------------------------------------------------------------
 # App
@@ -77,24 +97,32 @@ app = FastAPI(
     title=settings.PROJECT_NAME,
     description="Backend services for AI recruitment.",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.state.limiter = limiter
+
 
 # Wrap slowapi's sync handler in an async function to satisfy Starlette's
 # expected signature: (Request, Exception) -> Awaitable[Response]
 async def _rate_limit_handler(request: Request, exc: Exception) -> JSONResponse:
     return _rate_limit_exceeded_handler(request, exc)  # type: ignore[arg-type]
 
+
 app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
+
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unhandled Exception on {request.method} {request.url.path}: {exc}", exc_info=True)
+    logger.error(
+        f"Unhandled Exception on {request.method} {request.url.path}: {exc}",
+        exc_info=True,
+    )
     return JSONResponse(
         status_code=500,
-        content={"detail": "An unexpected internal server error occurred. Please try again later."},
+        content={"detail": f"Internal server error: {type(exc).__name__}: {exc}"},
     )
+
 
 # ---------------------------------------------------------------------------
 # CORS
@@ -127,6 +155,7 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 @app.get("/health")
 def health_check():
     return {"status": "ok", "message": "HireIntel AI Backend is running."}
+
 
 # ---------------------------------------------------------------------------
 # Serve frontend static files (for production / GCR deployment)

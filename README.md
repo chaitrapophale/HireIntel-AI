@@ -150,7 +150,7 @@ sequenceDiagram
         FE->>User: Display 2FA verification prompt
         User->>FE: Enters 6-digit Authenticator code
         FE->>BE: POST /api/v1/auth/2fa/verify (temp_token + code)
-        BE->>GoogleAuth: Verify TOTP secret code
+        BE->>GoogleAuth: Verify TOTP secret code 
         alt Code Valid
             BE->>FE: Issue access_token (JWT)
             FE->>User: Grant dashboard access
