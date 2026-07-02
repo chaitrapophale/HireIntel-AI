@@ -1,10 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
-  <!-- H letterform in dark navy -->
-  <rect x="12" y="12" width="16" height="76" rx="2" fill="#15157d"/>
-  <rect x="72" y="12" width="16" height="76" rx="2" fill="#15157d"/>
-  <rect x="12" y="44" width="76" height="14" rx="2" fill="#15157d"/>
-  <!-- Upward arrow sweep in electric blue -->
-  <path d="M22 78 Q38 60 55 50 Q68 42 82 18" stroke="#006ff0" stroke-width="9" stroke-linecap="round" fill="none"/>
-  <!-- Arrow head -->
-  <polygon points="82,18 68,20 76,32" fill="#006ff0"/>
+  <defs>
+    <linearGradient id="navyBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0F1B4C;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#006FF0;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="blueAccent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#006FF0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00C2FF;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <!-- H letterform left pillar -->
+  <rect x="10" y="10" width="18" height="80" rx="3" fill="url(#navyBlue)"/>
+  <!-- H letterform right pillar -->
+  <rect x="72" y="10" width="18" height="80" rx="3" fill="url(#navyBlue)"/>
+  <!-- H crossbar -->
+  <rect x="10" y="41" width="80" height="18" rx="3" fill="url(#navyBlue)"/>
+  <!-- Neural network center node -->
+  <circle cx="50" cy="50" r="7" fill="url(#blueAccent)"/>
+  <!-- Neural network connector lines -->
+  <line x1="50" y1="50" x2="35" y2="35" stroke="#006FF0" stroke-width="2" stroke-linecap="round" opacity="0.8"/>
+  <line x1="50" y1="50" x2="65" y2="35" stroke="#006FF0" stroke-width="2" stroke-linecap="round" opacity="0.8"/>
+  <line x1="50" y1="50" x2="35" y2="65" stroke="#006FF0" stroke-width="2" stroke-linecap="round" opacity="0.8"/>
+  <line x1="50" y1="50" x2="65" y2="65" stroke="#006FF0" stroke-width="2" stroke-linecap="round" opacity="0.8"/>
+  <!-- Neural network outer nodes -->
+  <circle cx="35" cy="35" r="4" fill="#00C2FF" opacity="0.9"/>
+  <circle cx="65" cy="35" r="4" fill="#00C2FF" opacity="0.9"/>
+  <circle cx="35" cy="65" r="4" fill="#00C2FF" opacity="0.9"/>
+  <circle cx="65" cy="65" r="4" fill="#00C2FF" opacity="0.9"/>
 </svg>

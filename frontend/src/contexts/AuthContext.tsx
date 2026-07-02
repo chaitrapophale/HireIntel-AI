@@ -13,7 +13,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   currentUser: null,
   userProfile: null,
-  loading: true,
+  loading: false,
   logout: async () => {},
 });
 
@@ -25,33 +25,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
-      
-      if (user) {
-        try {
-          const docRef = doc(db, "users", user.uid);
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-            setUserProfile(docSnap.data());
-          } else {
-            setUserProfile(null);
-          }
-        } catch (error) {
-          console.error("Error fetching user profile", error);
-        }
-      } else {
-        setUserProfile(null);
-      }
-      
-      setLoading(false);
-    });
+    // Safety timeout — if Firebase auth never responds (e.g. bad API key),
+    // unblock the app after 3 seconds so the UI doesn't stay blank forever.
+    const timeout = setTimeout(() => setLoading(false), 3000);
 
-    return unsubscribe;
+    let unsubscribe = () => {};
+
+    try {
+      unsubscribe = onAuthStateChanged(auth, async (user) => {
+        clearTimeout(timeout);
+        setCurrentUser(user);
+        
+        if (user) {
+          try {
+            const docRef = doc(db, "users", user.uid);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+              setUserProfile(docSnap.data());
+            } else {
+              setUserProfile(null);
+            }
+          } catch (error) {
+            console.error("Error fetching user profile", error);
+          }
+        } else {
+          setUserProfile(null);
+        }
+        
+        setLoading(false);
+      });
+    } catch (err) {
+      console.warn("Firebase onAuthStateChanged failed — running in fallback mode.", err);
+      clearTimeout(timeout);
+      setLoading(false);
+    }
+
+    return () => {
+      clearTimeout(timeout);
+      unsubscribe();
+    };
   }, []);
 
-  const logout = () => {
-    return firebaseSignOut(auth);
+  const logout = async () => {
+    try {
+      await firebaseSignOut(auth);
+    } catch {
+      // Firebase unavailable — no-op, store logout handles session clearing
+    }
   };
 
   const value = {
@@ -63,7 +83,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };

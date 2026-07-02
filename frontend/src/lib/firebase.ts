@@ -1,6 +1,6 @@
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeApp, type FirebaseApp } from "firebase/app";
+import { getAuth, type Auth } from "firebase/auth";
+import { getFirestore, type Firestore } from "firebase/firestore";
 
 // Firebase client config values are PUBLIC identifiers — not secrets.
 // They are safe to commit and are visible to any user of the app anyway.
@@ -15,6 +15,21 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID ?? "G-6V9MJD4HZL",
 };
 
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+// Wrap in try/catch so a bad API key never crashes the whole app.
+// The app will still work via the backend dev-fallback auth flow.
+let app: FirebaseApp | null = null;
+let auth: Auth;
+let db: Firestore;
+
+try {
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
+} catch (err) {
+  console.warn("Firebase failed to initialize — running in offline/fallback mode.", err);
+  // Provide stub objects so imports don't break
+  auth = {} as Auth;
+  db = {} as Firestore;
+}
+
+export { auth, db };

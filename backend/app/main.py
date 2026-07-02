@@ -80,7 +80,13 @@ app = FastAPI(
 )
 
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Wrap slowapi's sync handler in an async function to satisfy Starlette's
+# expected signature: (Request, Exception) -> Awaitable[Response]
+async def _rate_limit_handler(request: Request, exc: Exception) -> JSONResponse:
+    return _rate_limit_exceeded_handler(request, exc)  # type: ignore[arg-type]
+
+app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -93,13 +99,19 @@ async def global_exception_handler(request: Request, exc: Exception):
 # ---------------------------------------------------------------------------
 # CORS
 # ---------------------------------------------------------------------------
-frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173,http://127.0.0.1:5173")
-origins = [url.strip() for url in frontend_url.split(",")]
+frontend_url = os.getenv("FRONTEND_URL", "")
+if frontend_url:
+    origins = [url.strip() for url in frontend_url.split(",")]
+else:
+    # Combined container (frontend + backend on same server) or Cloud Run:
+    # Frontend is served from the same origin, so we allow all origins.
+    # Restrict this via FRONTEND_URL env var in production for extra security.
+    origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=True,
+    allow_credentials=origins != ["*"],  # credentials not allowed with wildcard
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "Accept"],
 )
